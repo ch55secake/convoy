@@ -1,0 +1,4 @@
+# Configuration for convoy orchestrator
+image: alpine:latest
+grpc_port: 50051
+docker_host: unix:///var/run/docker.sock
