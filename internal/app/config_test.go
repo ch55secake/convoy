@@ -9,7 +9,8 @@ import (
 func TestLoadConfig_DefaultLocation(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte("image: test\ngrpc_port: 1234\ndocker_host: unix:///tmp/docker.sock"), 0o600); err != nil {
+	configYAML := "image: test\ngrpc_port: 1234\ndocker_host: unix:///tmp/docker.sock\nagent_grpc_port: 7000"
+	if err := os.WriteFile(cfgPath, []byte(configYAML), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -31,6 +32,10 @@ func TestLoadConfig_DefaultLocation(t *testing.T) {
 	if cfg.DockerHost != "unix:///tmp/docker.sock" {
 		t.Fatalf("unexpected docker host: %s", cfg.DockerHost)
 	}
+
+	if cfg.AgentGRPCPort != 7000 {
+		t.Fatalf("unexpected agent grpc port: %d", cfg.AgentGRPCPort)
+	}
 }
 
 func TestConfigValidate(t *testing.T) {
@@ -42,6 +47,7 @@ func TestConfigValidate(t *testing.T) {
 	cfg.Image = "alpine"
 	cfg.GRPCPort = 4999
 	cfg.DockerHost = "unix:///var/run/docker.sock"
+	cfg.AgentGRPCPort = 6000
 
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)

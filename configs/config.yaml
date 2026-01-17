@@ -2,3 +2,7 @@
 image: alpine:latest
 grpc_port: 50051
 docker_host: unix:///var/run/docker.sock
+docker_network: bridge
+agent_grpc_port: 6000
+pull_always: false
+pull_timeout_sec: 300
