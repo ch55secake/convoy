@@ -32,3 +32,6 @@ go.work.sum
 
 # Binaries
 bin/
+
+# Agents file shhh!!!!!
+AGENTS.md
