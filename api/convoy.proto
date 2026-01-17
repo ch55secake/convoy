@@ -4,18 +4,88 @@ package convoy;
 
 option go_package = "convoy/api";
 
-// Service for container orchestration
+// ConvoyService exposes RPCs for executing commands and retrieving agent health.
 service ConvoyService {
   rpc ExecuteCommand (CommandRequest) returns (CommandResponse) {}
+  rpc ExecuteShell (stream ShellRequest) returns (stream ShellResponse) {}
+  rpc CheckHealth (HealthRequest) returns (HealthResponse) {}
 }
 
-// Request message
+// CommandRequest describes a non-interactive command to execute.
 message CommandRequest {
-  string command = 1;
+  repeated string args = 1; // first element is program path
+  map<string, string> env = 2;
+  string work_dir = 3;
+  int32 timeout_seconds = 4;
 }
 
-// Response message
+// CommandResponse contains the execution result.
 message CommandResponse {
-  string output = 1;
-  int32 exit_code = 2;
+  string stdout = 1;
+  string stderr = 2;
+  int32 exit_code = 3;
+  string error_message = 4;
+}
+
+// ShellRequest multiplexes shell session control over a bidi stream.
+message ShellRequest {
+  oneof payload {
+    ShellStart start = 1;
+    ShellInput input = 2;
+  }
+}
+
+// ShellStart initiates a new shell session.
+message ShellStart {
+  repeated string args = 1;
+  map<string, string> env = 2;
+  string work_dir = 3;
+}
+
+// ShellInput provides stdin data or closes the stream.
+message ShellInput {
+  bytes data = 1;
+  bool eof = 2;
+}
+
+// ShellResponse streams output or exit events.
+message ShellResponse {
+  oneof payload {
+    ShellOutput output = 1;
+    ShellExit exit = 2;
+  }
+}
+
+// ShellOutput identifies stdout vs stderr data chunks.
+message ShellOutput {
+  enum Stream {
+    STREAM_UNSPECIFIED = 0;
+    STDOUT = 1;
+    STDERR = 2;
+  }
+  Stream stream = 1;
+  bytes data = 2;
+}
+
+// ShellExit conveys the session result.
+message ShellExit {
+  int32 exit_code = 1;
+  string message = 2;
+}
+
+// HealthRequest probes agent readiness/liveness.
+message HealthRequest {
+  string probe = 1;
+}
+
+// HealthResponse reports agent status.
+message HealthResponse {
+  enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_HEALTHY = 1;
+    STATUS_DEGRADED = 2;
+    STATUS_UNHEALTHY = 3;
+  }
+  Status status = 1;
+  string message = 2;
 }
