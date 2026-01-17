@@ -32,14 +32,14 @@ type Server struct {
 
 // NewServer constructs a server with sane defaults.
 func NewServer(cfg *Config) *Server {
-	max := cfg.MaxConcurrent
-	if max <= 0 {
-		max = 1
+	maxConcurrent := cfg.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 1
 	}
 
 	return &Server{
 		cfg:  cfg,
-		sema: make(chan struct{}, max),
+		sema: make(chan struct{}, maxConcurrent),
 	}
 }
 
