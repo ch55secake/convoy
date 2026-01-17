@@ -140,7 +140,10 @@ func (r *RPC) connection(ctx context.Context, endpoint string) (*grpc.ClientConn
 
 	// Another goroutine might have created the connection while we dialed.
 	if existing, ok := r.conns[endpoint]; ok {
-		conn.Close()
+		err := conn.Close()
+		if err != nil {
+			return nil, err
+		}
 		return existing, nil
 	}
 

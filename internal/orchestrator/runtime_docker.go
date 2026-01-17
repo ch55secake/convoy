@@ -16,7 +16,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	imagetypes "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
@@ -86,7 +85,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 		ExposedPorts: nat.PortSet{portKey: struct{}{}},
 	}
 	if len(spec.Command) > 0 {
-		containerConfig.Cmd = strslice.StrSlice(spec.Command)
+		containerConfig.Cmd = spec.Command
 	}
 
 	hostConfig := &container.HostConfig{
@@ -163,7 +162,7 @@ func (d *DockerRuntime) Exec(id string, cmd []string) (string, error) {
 	}
 
 	ctx := context.Background()
-	execConfig := types.ExecConfig{
+	execConfig := container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -174,7 +173,7 @@ func (d *DockerRuntime) Exec(id string, cmd []string) (string, error) {
 		return "", fmt.Errorf("exec create: %w", err)
 	}
 
-	attach, err := d.client.ContainerExecAttach(ctx, resp.ID, types.ExecStartCheck{})
+	attach, err := d.client.ContainerExecAttach(ctx, resp.ID, container.ExecStartOptions{})
 	if err != nil {
 		return "", fmt.Errorf("exec attach: %w", err)
 	}
@@ -201,7 +200,7 @@ func (d *DockerRuntime) Exec(id string, cmd []string) (string, error) {
 // Shell attaches an interactive shell session.
 func (d *DockerRuntime) Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error {
 	ctx := context.Background()
-	execConfig := types.ExecConfig{
+	execConfig := container.ExecOptions{
 		Cmd:          []string{defaultShell},
 		AttachStdin:  stdin != nil,
 		AttachStdout: true,
@@ -214,7 +213,7 @@ func (d *DockerRuntime) Shell(id string, stdin io.Reader, stdout, stderr io.Writ
 		return fmt.Errorf("shell exec create: %w", err)
 	}
 
-	attach, err := d.client.ContainerExecAttach(ctx, resp.ID, types.ExecStartCheck{})
+	attach, err := d.client.ContainerExecAttach(ctx, resp.ID, container.ExecStartOptions{})
 	if err != nil {
 		return fmt.Errorf("shell exec attach: %w", err)
 	}
@@ -233,11 +232,17 @@ func (d *DockerRuntime) Shell(id string, stdin io.Reader, stdout, stderr io.Writ
 	if stdin != nil {
 		go func() {
 			_, copyErr := io.Copy(attach.Conn, stdin)
-			attach.CloseWrite()
+			err := attach.CloseWrite()
+			if err != nil {
+				return
+			}
 			stdinDone <- copyErr
 		}()
 	} else {
-		attach.CloseWrite()
+		err := attach.CloseWrite()
+		if err != nil {
+			return err
+		}
 	}
 
 	if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, attach.Reader); err != nil {
@@ -278,7 +283,12 @@ func (d *DockerRuntime) ensureImage(ctx context.Context, image string) error {
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer func(reader io.ReadCloser) {
+		err := reader.Close()
+		if err != nil {
+			return
+		}
+	}(reader)
 	_, _ = io.Copy(io.Discard, reader)
 	return nil
 }
