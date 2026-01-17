@@ -18,9 +18,13 @@ const (
 
 // Config holds application configuration loaded from YAML.
 type Config struct {
-	Image      string `yaml:"image"`
-	GRPCPort   int    `yaml:"grpc_port"`
-	DockerHost string `yaml:"docker_host"`
+	Image          string `yaml:"image"`
+	GRPCPort       int    `yaml:"grpc_port"`
+	DockerHost     string `yaml:"docker_host"`
+	DockerNetwork  string `yaml:"docker_network"`
+	AgentGRPCPort  int    `yaml:"agent_grpc_port"`
+	PullAlways     bool   `yaml:"pull_always"`
+	PullTimeoutSec int    `yaml:"pull_timeout_sec"`
 }
 
 // LoadConfig loads configuration from the provided path. When path is empty the
@@ -94,6 +98,14 @@ func (c *Config) Validate() error {
 		problems = append(problems, "docker_host is required")
 	}
 
+	if c.AgentGRPCPort <= 0 || c.AgentGRPCPort > 65535 {
+		problems = append(problems, "agent_grpc_port must be between 1 and 65535")
+	}
+
+	if c.PullTimeoutSec < 0 {
+		problems = append(problems, "pull_timeout_sec cannot be negative")
+	}
+
 	if len(problems) > 0 {
 		return errors.New("invalid config: " + strings.Join(problems, "; "))
 	}
@@ -106,7 +118,19 @@ func applyDefaults(cfg *Config) {
 		cfg.GRPCPort = 50051
 	}
 
+	if cfg.AgentGRPCPort == 0 {
+		cfg.AgentGRPCPort = 6000
+	}
+
 	if strings.TrimSpace(cfg.DockerHost) == "" {
 		cfg.DockerHost = "unix:///var/run/docker.sock"
+	}
+
+	if strings.TrimSpace(cfg.DockerNetwork) == "" {
+		cfg.DockerNetwork = "bridge"
+	}
+
+	if cfg.PullTimeoutSec == 0 {
+		cfg.PullTimeoutSec = 300
 	}
 }
