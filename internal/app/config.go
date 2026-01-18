@@ -16,6 +16,16 @@ const (
 	configFileName  = "config.yaml"
 )
 
+const defaultConfigYAML = `# Configuration for convoy orchestrator
+image: alpine:latest
+grpc_port: 50051
+docker_host: unix:///var/run/docker.sock
+docker_network: bridge
+agent_grpc_port: 6000
+pull_always: false
+pull_timeout_sec: 300
+`
+
 // Config holds application configuration loaded from YAML.
 type Config struct {
 	Image          string `yaml:"image"`
@@ -30,6 +40,25 @@ type Config struct {
 // LoadConfig loads configuration from the provided path. When path is empty the
 // default location (~/.config/convoy/config.yaml) is used. The location can be
 // overridden with the CONVOY_CONFIG_DIR environment variable.
+func InitializeConfig(path string) (string, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create config dir %q: %w", dir, err)
+	}
+
+	if _, err := os.Stat(path); err == nil {
+		return "", fmt.Errorf("config already exists at %s", path)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("stat config %q: %w", path, err)
+	}
+
+	if err := os.WriteFile(path, []byte(defaultConfigYAML), 0o644); err != nil {
+		return "", fmt.Errorf("write config %q: %w", path, err)
+	}
+
+	return path, nil
+}
+
 func LoadConfig(path string) (*Config, error) {
 	cfgPath := path
 	if cfgPath == "" {
