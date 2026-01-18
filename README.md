@@ -25,5 +25,10 @@ convoy --help
 cvy --help
 ```
 
+### Commands
+- `convoy start <name>` – Creates (if needed) and starts a new container registered under the provided CLI name. Running the same name again reuses the existing container instead of spawning a duplicate.
+- `convoy stop <name|id>` – Stops and removes the container identified by name or ID. Use `-a`/_`--all`_ to stop and remove every tracked container.
+- `convoy list` – Lists all containers managed by Convoy along with their CLI name, image, and agent endpoint.
+
 ## Contributing
 Contributions welcome! See LICENSE for details.
