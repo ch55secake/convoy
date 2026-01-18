@@ -11,7 +11,7 @@ import (
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Show or initialize configuration",
+		Short: "Show, validate or initialize configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {
