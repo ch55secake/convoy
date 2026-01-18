@@ -34,11 +34,22 @@ type Runtime interface {
 	RemoveContainer(id string) error
 	Exec(id string, cmd []string) (string, error)
 	Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error
+	ListContainers() ([]*Container, error)
 }
 
 // Manager coordinates container operations through the Runtime interface.
 type Manager struct {
 	runtime Runtime
+}
+
+// List retrieves containers from the runtime implementation.
+func (m *Manager) List() ([]*Container, error) {
+	containers, err := m.runtime.ListContainers()
+	if err != nil {
+		return nil, fmt.Errorf("list containers: %w", err)
+	}
+
+	return containers, nil
 }
 
 // NewManager constructs a Manager backed by the provided runtime.
