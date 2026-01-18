@@ -17,8 +17,16 @@ func newListCmd() *cobra.Command {
 				return err
 			}
 
-			registry := app.Registry()
-			containers := registry.List()
+			mgr, err := app.Manager()
+			if err != nil {
+				return err
+			}
+
+			containers, err := mgr.List()
+			if err != nil {
+				return err
+			}
+
 			if len(containers) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
 				return nil

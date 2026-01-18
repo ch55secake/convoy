@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"io"
+	"path/filepath"
 	"testing"
 
 	"convoy/internal/app"
@@ -24,9 +25,13 @@ func (f runtimeFactoryFunc) Exec(id string, cmd []string) (string, error) { retu
 func (f runtimeFactoryFunc) Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error {
 	return nil
 }
+func (f runtimeFactoryFunc) ListContainers() ([]*orchestrator.Container, error) {
+	return nil, nil
+}
 
 func TestApplicationConfig(t *testing.T) {
-	app := newApplication("", func(cfg *app.Config) (orchestrator.Runtime, error) {
+	configPath := filepath.Join(t.TempDir(), "missing.yaml")
+	app := newApplication(configPath, func(cfg *app.Config) (orchestrator.Runtime, error) {
 		return runtimeFactoryFunc(nil), nil
 	})
 

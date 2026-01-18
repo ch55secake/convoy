@@ -14,6 +14,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	imagetypes "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -153,6 +154,49 @@ func (d *DockerRuntime) RemoveContainer(id string) error {
 		return fmt.Errorf("remove container %s: %w", id, err)
 	}
 	return nil
+}
+
+// ListContainers returns metadata for managed containers.
+func (d *DockerRuntime) ListContainers() ([]*Container, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	args := filters.NewArgs()
+	args.Add("label", "convoy.cli.name")
+
+	opts := container.ListOptions{
+		All:     true,
+		Filters: args,
+	}
+
+	summaries, err := d.client.ContainerList(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("list containers: %w", err)
+	}
+
+	containers := make([]*Container, 0, len(summaries))
+	portKey := nat.Port(fmt.Sprintf("%d/tcp", d.agentGRPCPort))
+
+	for _, summary := range summaries {
+		inspect, err := d.client.ContainerInspect(ctx, summary.ID)
+		if err != nil {
+			return nil, fmt.Errorf("inspect container %s: %w", summary.ID, err)
+		}
+
+		createdAt, _ := time.Parse(time.RFC3339Nano, inspect.Created)
+		endpoint := deriveEndpoint(inspect, portKey, d.network, d.agentGRPCPort)
+
+		containers = append(containers, &Container{
+			ID:        inspect.ID,
+			Image:     inspect.Config.Image,
+			Endpoint:  endpoint,
+			Labels:    inspect.Config.Labels,
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		})
+	}
+
+	return containers, nil
 }
 
 // Exec runs a command in the container and returns its combined output.
