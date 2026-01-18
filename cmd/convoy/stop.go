@@ -11,9 +11,10 @@ func newStopCmd() *cobra.Command {
 	var stopAll bool
 
 	cmd := &cobra.Command{
-		Use:   "stop [container-id]",
-		Short: "Stop containers",
-		Args:  cobra.ArbitraryArgs,
+		Use:          "stop [container-id]",
+		Short:        "Stop containers",
+		Args:         cobra.ArbitraryArgs,
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {
