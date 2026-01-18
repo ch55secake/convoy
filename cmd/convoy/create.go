@@ -8,8 +8,9 @@ import (
 
 func newCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a new container",
+		Use:          "create",
+		Short:        "Create a new container",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {

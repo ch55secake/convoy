@@ -10,8 +10,9 @@ import (
 
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Show, validate or initialize configuration",
+		Use:          "config",
+		Short:        "Show, validate or initialize configuration",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {

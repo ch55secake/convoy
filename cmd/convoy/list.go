@@ -9,8 +9,9 @@ import (
 
 func newListCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List containers",
+		Use:          "list",
+		Short:        "List containers",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {

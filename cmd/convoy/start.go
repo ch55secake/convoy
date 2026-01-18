@@ -11,9 +11,10 @@ import (
 
 func newStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "start [container-id]",
-		Short: "Start containers",
-		Args:  cobra.MinimumNArgs(1),
+		Use:          "start [container-id]",
+		Short:        "Start containers",
+		Args:         cobra.MinimumNArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {
@@ -50,7 +51,7 @@ func newStartCmd() *cobra.Command {
 					containerID = existing.ID
 					containerName = strings.TrimSpace(existing.Name)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "No registered container %s; creating new container...\n", arg)
+					fmt.Fprintf(cmd.OutOrStdout(), "No registered container: %s\nCreating new container...\n", arg)
 					spec := orchestrator.ContainerSpec{
 						Name:  containerName,
 						Image: cfg.Image,
