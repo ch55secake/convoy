@@ -22,15 +22,29 @@ func newStopCmd() *cobra.Command {
 				return err
 			}
 
+			registry := app.Registry()
+
 			var lastErr error
 			for _, id := range args {
-				if err := mgr.Stop(id); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Failed to stop %s: %v\n", id, err)
-					lastErr = fmt.Errorf("stop %s: %w", id, err)
+				containerID := id
+				if existing, ok := registry.Get(id); ok {
+					containerID = existing.ID
+				}
+
+				if err := mgr.Stop(containerID); err != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "Failed to stop %s: %v\n", containerID, err)
+					lastErr = fmt.Errorf("stop %s: %w", containerID, err)
 					continue
 				}
 
-				fmt.Fprintf(cmd.OutOrStdout(), "Stopped %s\n", id)
+				if removeErr := mgr.Remove(containerID); removeErr != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "Failed to remove %s: %v\n", containerID, removeErr)
+					lastErr = fmt.Errorf("remove %s: %w", containerID, removeErr)
+					continue
+				}
+
+				registry.Remove(containerID)
+				fmt.Fprintf(cmd.OutOrStdout(), "Stopped and removed %s\n", containerID)
 			}
 
 			return lastErr
