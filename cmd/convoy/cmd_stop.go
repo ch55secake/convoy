@@ -2,15 +2,18 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 func newStopCmd() *cobra.Command {
+	var stopAll bool
+
 	cmd := &cobra.Command{
 		Use:   "stop [container-id]",
 		Short: "Stop containers",
-		Args:  cobra.MinimumNArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp()
 			if err != nil {
@@ -24,32 +27,83 @@ func newStopCmd() *cobra.Command {
 
 			registry := app.Registry()
 
+			managed, listErr := mgr.List()
+			if listErr != nil {
+				return fmt.Errorf("list containers: %w", listErr)
+			}
+			for _, container := range managed {
+				_ = registry.Register(container)
+			}
+
+			targetIDs := args
+			if stopAll {
+				containers := registry.List()
+				if len(containers) == 0 {
+					fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
+					return nil
+				}
+
+				targetIDs = make([]string, 0, len(containers))
+				for _, c := range containers {
+					if c == nil {
+						continue
+					}
+					targetIDs = append(targetIDs, c.ID)
+				}
+			} else if len(targetIDs) == 0 {
+				return fmt.Errorf("provide container IDs or use -a")
+			}
+
+			resolve := func(input string) (string, string) {
+				trimmed := strings.TrimSpace(input)
+				if trimmed == "" {
+					return "", ""
+				}
+
+				if c, ok := registry.GetByName(trimmed); ok {
+					return c.ID, c.Name
+				}
+
+				if c, ok := registry.Get(trimmed); ok {
+					return c.ID, c.Name
+				}
+
+				return trimmed, trimmed
+			}
+
 			var lastErr error
-			for _, id := range args {
-				containerID := id
-				if existing, ok := registry.Get(id); ok {
-					containerID = existing.ID
+			for _, target := range targetIDs {
+				containerID, containerName := resolve(target)
+				if containerID == "" {
+					continue
+				}
+
+				label := containerName
+				if label == "" {
+					label = containerID
 				}
 
 				if err := mgr.Stop(containerID); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Failed to stop %s: %v\n", containerID, err)
-					lastErr = fmt.Errorf("stop %s: %w", containerID, err)
+					fmt.Fprintf(cmd.OutOrStdout(), "Failed to stop %s: %v\n", label, err)
+					lastErr = fmt.Errorf("stop %s: %w", label, err)
 					continue
 				}
 
 				if removeErr := mgr.Remove(containerID); removeErr != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Failed to remove %s: %v\n", containerID, removeErr)
-					lastErr = fmt.Errorf("remove %s: %w", containerID, removeErr)
+					fmt.Fprintf(cmd.OutOrStdout(), "Failed to remove %s: %v\n", label, removeErr)
+					lastErr = fmt.Errorf("remove %s: %w", label, removeErr)
 					continue
 				}
 
 				registry.Remove(containerID)
-				fmt.Fprintf(cmd.OutOrStdout(), "Stopped and removed %s\n", containerID)
+				fmt.Fprintf(cmd.OutOrStdout(), "Stopped and removed %s\n", label)
 			}
 
 			return lastErr
 		},
 	}
+
+	cmd.Flags().BoolVarP(&stopAll, "all", "a", false, "Stop and remove all managed containers")
 
 	return cmd
 }
