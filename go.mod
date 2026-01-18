@@ -1,6 +1,6 @@
 module convoy
 
-go 1.24.2
+go 1.25.6
 
 require (
 	github.com/docker/docker v27.1.1+incompatible
