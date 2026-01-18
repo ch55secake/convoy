@@ -33,20 +33,24 @@ func newStartCmd() *cobra.Command {
 			registry := app.Registry()
 
 			var lastErr error
-			for _, id := range args {
-				containerID := id
-				containerName := strings.TrimSpace(id)
+			for _, arg := range args {
+				containerID := arg
+				containerName := strings.TrimSpace(arg)
 				if containerName == "" {
 					continue
 				}
 
+				_, err := mgr.List()
+				if err != nil {
+					return err
+				}
 				if existing, ok := registry.GetByName(containerName); ok {
 					containerID = existing.ID
-				} else if existing, ok := registry.Get(id); ok {
+				} else if existing, ok := registry.Get(arg); ok {
 					containerID = existing.ID
 					containerName = strings.TrimSpace(existing.Name)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "No registered container %s; creating new container...\n", id)
+					fmt.Fprintf(cmd.OutOrStdout(), "No registered container %s; creating new container...\n", arg)
 					spec := orchestrator.ContainerSpec{
 						Name:  containerName,
 						Image: cfg.Image,
@@ -54,8 +58,8 @@ func newStartCmd() *cobra.Command {
 
 					container, createErr := mgr.Create(spec)
 					if createErr != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), "Failed to create container %s: %v\n", id, createErr)
-						lastErr = fmt.Errorf("create %s: %w", id, createErr)
+						fmt.Fprintf(cmd.OutOrStdout(), "Failed to create container %s: %v\n", arg, createErr)
+						lastErr = fmt.Errorf("create %s: %w", arg, createErr)
 						continue
 					}
 

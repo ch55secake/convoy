@@ -71,7 +71,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 
 	name := strings.TrimSpace(spec.Name)
 	labels := copyStringMap(spec.Labels)
-	labels["convoy.cli.name"] = name
+	labels[CLINameLabel] = name
 	envVars := mapToEnv(spec.Environment)
 	ctx, cancel := context.WithTimeout(context.Background(), d.pullTimeout)
 	defer cancel()
@@ -183,7 +183,8 @@ func (d *DockerRuntime) ListContainers() ([]*Container, error) {
 	for _, summary := range summaries {
 		inspect, err := d.client.ContainerInspect(ctx, summary.ID)
 		if err != nil {
-			return nil, fmt.Errorf("inspect container %s: %w", summary.ID, err)
+			_ = fmt.Errorf("failed to inspect container %s: %v", summary.ID, err)
+			continue
 		}
 
 		createdAt, _ := time.Parse(time.RFC3339Nano, inspect.Created)
