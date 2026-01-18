@@ -39,6 +39,13 @@ func (r *Registry) Register(container *Container) error {
 		r.removeNameIndex(existing)
 	}
 
+	name := strings.TrimSpace(container.Name)
+	if name != "" {
+		if existingID, ok := r.nameIndex[name]; ok && existingID != container.ID {
+			return fmt.Errorf("container name %s already registered for container %s", name, existingID)
+		}
+	}
+
 	r.containers[container.ID] = container
 	r.setNameIndex(container)
 
