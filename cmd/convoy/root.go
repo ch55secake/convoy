@@ -33,6 +33,10 @@ func Execute() error {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cliOpts.configPath, "config", "", "Path to config file (defaults to ~/.config/convoy/config.yaml)")
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if shouldSkipAppInit(cmd) {
+			return nil
+		}
+
 		return initializeApplication()
 	}
 
@@ -46,6 +50,18 @@ func init() {
 		newExecCmd(),
 		newShellCmd(),
 	)
+}
+
+func shouldSkipAppInit(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+
+	if cmd.Name() == "init" && cmd.HasParent() && cmd.Parent().Name() == "config" {
+		return true
+	}
+
+	return false
 }
 
 func initializeApplication() error {
