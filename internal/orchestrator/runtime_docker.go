@@ -69,7 +69,9 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 		return nil, errors.New("image is required")
 	}
 
+	name := strings.TrimSpace(spec.Name)
 	labels := copyStringMap(spec.Labels)
+	labels["convoy.cli.name"] = name
 	envVars := mapToEnv(spec.Environment)
 	ctx, cancel := context.WithTimeout(context.Background(), d.pullTimeout)
 	defer cancel()
@@ -104,7 +106,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 		}
 	}
 
-	resp, err := d.client.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, "")
+	resp, err := d.client.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, name)
 	if err != nil {
 		return nil, fmt.Errorf("create container: %w", err)
 	}
@@ -119,6 +121,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 
 	return &Container{
 		ID:        resp.ID,
+		Name:      name,
 		Image:     image,
 		Endpoint:  endpoint,
 		Labels:    labels,
@@ -188,12 +191,14 @@ func (d *DockerRuntime) ListContainers() ([]*Container, error) {
 
 		containers = append(containers, &Container{
 			ID:        inspect.ID,
+			Name:      deriveCLIName(inspect.Config.Labels),
 			Image:     inspect.Config.Image,
 			Endpoint:  endpoint,
 			Labels:    inspect.Config.Labels,
 			CreatedAt: createdAt,
 			UpdatedAt: createdAt,
 		})
+
 	}
 
 	return containers, nil
@@ -397,4 +402,12 @@ func deriveEndpoint(inspect types.ContainerJSON, port nat.Port, preferredNetwork
 	}
 
 	return ""
+}
+
+func deriveCLIName(labels map[string]string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(labels[CLINameLabel])
 }
