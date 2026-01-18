@@ -10,7 +10,7 @@ Convoy is a Go-based CLI tool for orchestrating multiple Alpine Linux containers
 - **Individual Management**: Inspect, view logs, check stats (CPU/memory), restart, and access interactive shells on containers.
 - **Process Management**: Supervisord handles gRPC servers in containers for reliability.
 - **CLI**: Built with Cobra; alias `cvy` for convenience.
-- 
+
 ## Installation
 Prerequisites: Go 1.21+, Docker, GitHub CLI (for remote setup).
 
