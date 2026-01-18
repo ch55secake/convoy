@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -23,11 +24,12 @@ func newListCmd() *cobra.Command {
 				return nil
 			}
 
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			fmt.Fprintf(w, "ID\tIMAGE\tENDPOINT\n")
 			for _, c := range containers {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", c.ID, c.Image, c.Endpoint)
+				fmt.Fprintf(w, "%s\t%s\t%s\n", c.ID, c.Image, c.Endpoint)
 			}
-
-			return nil
+			return w.Flush()
 		},
 	}
 
