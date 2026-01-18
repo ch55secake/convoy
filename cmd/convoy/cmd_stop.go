@@ -51,7 +51,7 @@ func newStopCmd() *cobra.Command {
 					targetIDs = append(targetIDs, c.ID)
 				}
 			} else if len(targetIDs) == 0 {
-				return fmt.Errorf("provide container IDs or use -a")
+				return fmt.Errorf("provide container names or IDs, or use -a")
 			}
 
 			resolve := func(input string) (string, string) {
