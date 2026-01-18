@@ -22,7 +22,7 @@ func newCreateCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Would create container with image %s (not yet implemented)\n", cfg.Image)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Would create container with image %s (not yet implemented)\n", cfg.Image)
 			return nil
 		},
 	}

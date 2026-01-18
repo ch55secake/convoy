@@ -10,19 +10,17 @@ import (
 	"convoy/internal/orchestrator"
 )
 
-type fakeRuntime struct{}
-
 type runtimeFactoryFunc func(cfg *app.Config) (orchestrator.Runtime, error)
 
-func (f runtimeFactoryFunc) CreateContainer(spec orchestrator.ContainerSpec) (*orchestrator.Container, error) {
+func (f runtimeFactoryFunc) CreateContainer(_ orchestrator.ContainerSpec) (*orchestrator.Container, error) {
 	return nil, nil
 }
 
-func (f runtimeFactoryFunc) StartContainer(id string) error               { return nil }
-func (f runtimeFactoryFunc) StopContainer(id string) error                { return nil }
-func (f runtimeFactoryFunc) RemoveContainer(id string) error              { return nil }
-func (f runtimeFactoryFunc) Exec(id string, cmd []string) (string, error) { return "", nil }
-func (f runtimeFactoryFunc) Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error {
+func (f runtimeFactoryFunc) StartContainer(_ string) error             { return nil }
+func (f runtimeFactoryFunc) StopContainer(_ string) error              { return nil }
+func (f runtimeFactoryFunc) RemoveContainer(_ string) error            { return nil }
+func (f runtimeFactoryFunc) Exec(_ string, _ []string) (string, error) { return "", nil }
+func (f runtimeFactoryFunc) Shell(_ string, _ io.Reader, _, _ io.Writer) error {
 	return nil
 }
 func (f runtimeFactoryFunc) ListContainers() ([]*orchestrator.Container, error) {
@@ -31,11 +29,11 @@ func (f runtimeFactoryFunc) ListContainers() ([]*orchestrator.Container, error) 
 
 func TestApplicationConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "missing.yaml")
-	app := newApplication(configPath, func(cfg *app.Config) (orchestrator.Runtime, error) {
+	application := newApplication(configPath, func(cfg *app.Config) (orchestrator.Runtime, error) {
 		return runtimeFactoryFunc(nil), nil
 	})
 
-	if _, err := app.Config(); err == nil {
+	if _, err := application.Config(); err == nil {
 		t.Fatalf("expected error due to missing config file")
 	}
 }
@@ -45,8 +43,8 @@ func TestApplicationManagerErrorsBubblesUp(t *testing.T) {
 		return nil, errors.New("boom")
 	}
 
-	app := newApplication("", errorFactory)
-	if _, err := app.Manager(); err == nil {
+	application := newApplication("", errorFactory)
+	if _, err := application.Manager(); err == nil {
 		t.Fatalf("expected error from runtime factory")
 	}
 }

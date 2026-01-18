@@ -28,7 +28,7 @@ jobs:
         run: go mod download
 
       - name: Build Convoy
-        run: make build
+        run: make compile
 
   test:
     runs-on: ubuntu-latest

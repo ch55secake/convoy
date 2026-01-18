@@ -51,7 +51,7 @@ func newStartCmd() *cobra.Command {
 					containerID = existing.ID
 					containerName = strings.TrimSpace(existing.Name)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "No registered container: %s\nCreating new container...\n", arg)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "No registered container: %s\nCreating new container...\n", arg)
 					spec := orchestrator.ContainerSpec{
 						Name:  containerName,
 						Image: cfg.Image,
@@ -59,26 +59,26 @@ func newStartCmd() *cobra.Command {
 
 					container, createErr := mgr.Create(spec)
 					if createErr != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), "Failed to create container %s: %v\n", arg, createErr)
+						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Failed to create container %s: %v\n", arg, createErr)
 						lastErr = fmt.Errorf("create %s: %w", arg, createErr)
 						continue
 					}
 
 					if regErr := registry.Register(container); regErr != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), "Warning: failed to register %s: %v\n", container.ID, regErr)
+						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Warning: failed to register %s: %v\n", container.ID, regErr)
 					}
 
 					containerID = container.ID
-					fmt.Fprintf(cmd.OutOrStdout(), "Created container %s (id=%s)\n", containerName, container.ID)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created container %s (id=%s)\n", containerName, container.ID)
 				}
 
 				if err := mgr.Start(containerID); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Failed to start %s: %v\n", containerID, err)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Failed to start %s: %v\n", containerID, err)
 					lastErr = fmt.Errorf("start %s: %w", containerID, err)
 					continue
 				}
 
-				fmt.Fprintf(cmd.OutOrStdout(), "Started %s\n", containerID)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Started %s\n", containerID)
 			}
 
 			return lastErr

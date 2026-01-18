@@ -29,14 +29,14 @@ func newListCmd() *cobra.Command {
 			}
 
 			if len(containers) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
 				return nil
 			}
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintf(w, "ID\tNAME\tIMAGE\tENDPOINT\n")
+			_, _ = fmt.Fprintf(w, "ID\tNAME\tIMAGE\tENDPOINT\n")
 			for _, c := range containers {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", c.ID, c.Name, c.Image, c.Endpoint)
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", c.ID, c.Name, c.Image, c.Endpoint)
 			}
 
 			return w.Flush()

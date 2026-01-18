@@ -37,9 +37,9 @@ type Config struct {
 	PullTimeoutSec int    `yaml:"pull_timeout_sec"`
 }
 
-// LoadConfig loads configuration from the provided path. When path is empty the
-// default location (~/.config/convoy/config.yaml) is used. The location can be
-// overridden with the CONVOY_CONFIG_DIR environment variable.
+// InitializeConfig creates a default configuration file at the specified path if it does not already exist.
+// It ensures the directory structure is created and writes the default configuration content to the file.
+// Returns the configuration file path or an error if initialization fails.
 func InitializeConfig(path string) (string, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -59,6 +59,9 @@ func InitializeConfig(path string) (string, error) {
 	return path, nil
 }
 
+// LoadConfig loads configuration from the provided path. When path is empty the
+// default location (~/.config/convoy/config.yaml) is used. The location can be
+// overridden with the CONVOY_CONFIG_DIR environment variable.
 func LoadConfig(path string) (*Config, error) {
 	cfgPath := path
 	if cfgPath == "" {

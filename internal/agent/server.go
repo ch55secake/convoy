@@ -26,7 +26,7 @@ type Server struct {
 	cfg  *Config
 	sema chan struct{}
 	grpc *grpc.Server
-	mu   sync.Mutex
+	_    sync.Mutex
 	convoypb.UnimplementedConvoyServiceServer
 }
 
@@ -306,7 +306,7 @@ waitExit:
 }
 
 // CheckHealth reports basic readiness.
-func (s *Server) CheckHealth(ctx context.Context, req *convoypb.HealthRequest) (*convoypb.HealthResponse, error) {
+func (s *Server) CheckHealth(_ context.Context, _ *convoypb.HealthRequest) (*convoypb.HealthResponse, error) {
 	return &convoypb.HealthResponse{
 		Status:  convoypb.HealthResponse_STATUS_HEALTHY,
 		Message: "ok",

@@ -84,8 +84,3 @@ func getApp() (*Application, error) {
 
 	return appInstance, nil
 }
-
-func setApplication(app *Application) {
-	appInstance = app
-	appInitErr = nil
-}

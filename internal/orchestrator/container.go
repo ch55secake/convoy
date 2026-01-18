@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// CLINameLabel is the label applied to containers managed by the CLI.
 const CLINameLabel = "convoy.cli.name"
 
 // Container represents a managed container instance.

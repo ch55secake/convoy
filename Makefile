@@ -1,6 +1,6 @@
 .PHONY: build test lint clean
 
-build:
+compile:
 	go build -o bin/convoy ./cmd/convoy
 
 test:

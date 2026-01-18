@@ -40,7 +40,7 @@ func newStopCmd() *cobra.Command {
 			if stopAll {
 				containers := registry.List()
 				if len(containers) == 0 {
-					fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
 					return nil
 				}
 
@@ -85,19 +85,19 @@ func newStopCmd() *cobra.Command {
 				}
 
 				if err := mgr.Stop(containerID); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Failed to stop %s: %v\n", label, err)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Failed to stop %s: %v\n", label, err)
 					lastErr = fmt.Errorf("stop %s: %w", label, err)
 					continue
 				}
 
 				if removeErr := mgr.Remove(containerID); removeErr != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Failed to remove %s: %v\n", label, removeErr)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Failed to remove %s: %v\n", label, removeErr)
 					lastErr = fmt.Errorf("remove %s: %w", label, removeErr)
 					continue
 				}
 
 				registry.Remove(containerID)
-				fmt.Fprintf(cmd.OutOrStdout(), "Stopped and removed %s\n", label)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Stopped and removed %s\n", label)
 			}
 
 			return lastErr

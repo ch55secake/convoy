@@ -24,9 +24,9 @@ func newConfigCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Image: %s\n", cfg.Image)
-			fmt.Fprintf(cmd.OutOrStdout(), "gRPC Port: %d\n", cfg.GRPCPort)
-			fmt.Fprintf(cmd.OutOrStdout(), "Docker Host: %s\n", cfg.DockerHost)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Image: %s\n", cfg.Image)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "gRPC Port: %d\n", cfg.GRPCPort)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Docker Host: %s\n", cfg.DockerHost)
 			return nil
 		},
 	}
@@ -55,7 +55,7 @@ func newConfigInitCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Wrote default config to %s\n", createdPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Wrote default config to %s\n", createdPath)
 			return nil
 		},
 	}
