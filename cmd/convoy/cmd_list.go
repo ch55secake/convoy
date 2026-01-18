@@ -33,10 +33,11 @@ func newListCmd() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintf(w, "ID\tIMAGE\tENDPOINT\n")
+			fmt.Fprintf(w, "ID\tNAME\tIMAGE\tENDPOINT\n")
 			for _, c := range containers {
-				fmt.Fprintf(w, "%s\t%s\t%s\n", c.ID, c.Image, c.Endpoint)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", c.ID, c.Name, c.Image, c.Endpoint)
 			}
+
 			return w.Flush()
 		},
 	}

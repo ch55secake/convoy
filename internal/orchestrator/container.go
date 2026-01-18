@@ -8,9 +8,12 @@ import (
 	"time"
 )
 
+const CLINameLabel = "convoy.cli.name"
+
 // Container represents a managed container instance.
 type Container struct {
 	ID        string
+	Name      string
 	Image     string
 	Endpoint  string
 	Labels    map[string]string
@@ -20,6 +23,7 @@ type Container struct {
 
 // ContainerSpec describes how a new container should be created.
 type ContainerSpec struct {
+	Name        string
 	Image       string
 	Labels      map[string]string
 	Environment map[string]string
@@ -125,6 +129,10 @@ func (m *Manager) Shell(id string, stdin io.Reader, stdout, stderr io.Writer) er
 }
 
 func validateSpec(spec ContainerSpec) error {
+	if strings.TrimSpace(spec.Name) == "" {
+		return errors.New("name is required")
+	}
+
 	if strings.TrimSpace(spec.Image) == "" {
 		return errors.New("image is required")
 	}

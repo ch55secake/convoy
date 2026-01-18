@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -10,12 +11,14 @@ import (
 type Registry struct {
 	mu         sync.RWMutex
 	containers map[string]*Container
+	nameIndex  map[string]string
 }
 
 // NewRegistry creates an empty container registry.
 func NewRegistry() *Registry {
 	return &Registry{
 		containers: make(map[string]*Container),
+		nameIndex:  make(map[string]string),
 	}
 }
 
@@ -32,7 +35,13 @@ func (r *Registry) Register(container *Container) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if existing, ok := r.containers[container.ID]; ok {
+		r.removeNameIndex(existing)
+	}
+
 	r.containers[container.ID] = container
+	r.setNameIndex(container)
+
 	return nil
 }
 
@@ -45,7 +54,10 @@ func (r *Registry) Remove(id string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	delete(r.containers, id)
+	if container, ok := r.containers[id]; ok {
+		r.removeNameIndex(container)
+		delete(r.containers, id)
+	}
 }
 
 // Get returns a container by ID.
@@ -56,6 +68,25 @@ func (r *Registry) Get(id string) (*Container, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	container, ok := r.containers[id]
+	return container, ok
+}
+
+// GetByName returns a container by its CLI name.
+func (r *Registry) GetByName(name string) (*Container, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	id, ok := r.nameIndex[name]
+	if !ok {
+		return nil, false
+	}
 
 	container, ok := r.containers[id]
 	return container, ok
@@ -82,4 +113,32 @@ func (r *Registry) Require(id string) (*Container, error) {
 	}
 
 	return container, nil
+}
+
+func (r *Registry) setNameIndex(container *Container) {
+	if container == nil {
+		return
+	}
+
+	name := strings.TrimSpace(container.Name)
+	if name == "" {
+		return
+	}
+
+	r.nameIndex[name] = container.ID
+}
+
+func (r *Registry) removeNameIndex(container *Container) {
+	if container == nil {
+		return
+	}
+
+	name := strings.TrimSpace(container.Name)
+	if name == "" {
+		return
+	}
+
+	if existingID, ok := r.nameIndex[name]; ok && existingID == container.ID {
+		delete(r.nameIndex, name)
+	}
 }
