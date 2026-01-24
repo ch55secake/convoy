@@ -11,3 +11,6 @@ lint:
 
 clean:
 	rm -rf bin/
+
+build-image:
+	docker build -f Dockerfile -t convoy:latest .

@@ -14,12 +14,12 @@ func newConfigCmd() *cobra.Command {
 		Short:        "Show, validate or initialize configuration",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app, err := getApp()
+			application, err := getApp()
 			if err != nil {
 				return err
 			}
 
-			cfg, err := app.Config()
+			cfg, err := application.Config()
 			if err != nil {
 				return err
 			}

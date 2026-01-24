@@ -17,7 +17,7 @@ const (
 )
 
 const defaultConfigYAML = `# Configuration for convoy orchestrator
-image: alpine:latest
+image: convoy:latest
 grpc_port: 50051
 docker_host: unix:///var/run/docker.sock
 docker_network: bridge
