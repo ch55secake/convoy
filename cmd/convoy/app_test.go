@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"io"
 	"path/filepath"
 	"testing"
 
@@ -16,13 +15,9 @@ func (f runtimeFactoryFunc) CreateContainer(_ orchestrator.ContainerSpec) (*orch
 	return nil, nil
 }
 
-func (f runtimeFactoryFunc) StartContainer(_ string) error             { return nil }
-func (f runtimeFactoryFunc) StopContainer(_ string) error              { return nil }
-func (f runtimeFactoryFunc) RemoveContainer(_ string) error            { return nil }
-func (f runtimeFactoryFunc) Exec(_ string, _ []string) (string, error) { return "", nil }
-func (f runtimeFactoryFunc) Shell(_ string, _ io.Reader, _, _ io.Writer) error {
-	return nil
-}
+func (f runtimeFactoryFunc) StartContainer(_ string) error  { return nil }
+func (f runtimeFactoryFunc) StopContainer(_ string) error   { return nil }
+func (f runtimeFactoryFunc) RemoveContainer(_ string) error { return nil }
 func (f runtimeFactoryFunc) ListContainers() ([]*orchestrator.Container, error) {
 	return nil, nil
 }

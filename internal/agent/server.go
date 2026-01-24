@@ -307,6 +307,7 @@ waitExit:
 
 // CheckHealth reports basic readiness.
 func (s *Server) CheckHealth(_ context.Context, _ *convoypb.HealthRequest) (*convoypb.HealthResponse, error) {
+	log.Printf("health check requested")
 	return &convoypb.HealthResponse{
 		Status:  convoypb.HealthResponse_STATUS_HEALTHY,
 		Message: "ok",

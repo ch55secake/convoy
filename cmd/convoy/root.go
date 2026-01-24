@@ -44,6 +44,7 @@ func init() {
 		newConfigCmd(),
 		newCreateCmd(),
 		newListCmd(),
+		newHealthCmd(),
 		newStartCmd(),
 		newStopCmd(),
 		newRemoveCmd(),

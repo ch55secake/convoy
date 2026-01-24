@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -18,11 +17,10 @@ import (
 	imagetypes "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 )
 
-const defaultShell = "/bin/sh"
+const defaultShell = "/bin/bash"
 
 // DockerRuntime implements Runtime using the Docker Engine API.
 type DockerRuntime struct {
@@ -94,6 +92,9 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 	hostConfig := &container.HostConfig{
 		PortBindings: nat.PortMap{
 			portKey: {{HostIP: "", HostPort: ""}},
+		},
+		RestartPolicy: container.RestartPolicy{
+			Name: "unless-stopped",
 		},
 	}
 
@@ -203,118 +204,6 @@ func (d *DockerRuntime) ListContainers() ([]*Container, error) {
 	}
 
 	return containers, nil
-}
-
-// Exec runs a command in the container and returns its combined output.
-func (d *DockerRuntime) Exec(id string, cmd []string) (string, error) {
-	if len(cmd) == 0 {
-		return "", errors.New("command is required")
-	}
-
-	ctx := context.Background()
-	execConfig := container.ExecOptions{
-		Cmd:          cmd,
-		AttachStdout: true,
-		AttachStderr: true,
-	}
-
-	resp, err := d.client.ContainerExecCreate(ctx, id, execConfig)
-	if err != nil {
-		return "", fmt.Errorf("exec create: %w", err)
-	}
-
-	attach, err := d.client.ContainerExecAttach(ctx, resp.ID, container.ExecStartOptions{})
-	if err != nil {
-		return "", fmt.Errorf("exec attach: %w", err)
-	}
-	defer attach.Close()
-
-	var stdoutBuf, stderrBuf bytes.Buffer
-	if _, err := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, attach.Reader); err != nil {
-		return "", fmt.Errorf("exec copy: %w", err)
-	}
-
-	inspect, err := d.client.ContainerExecInspect(ctx, resp.ID)
-	if err != nil {
-		return "", fmt.Errorf("exec inspect: %w", err)
-	}
-
-	output := stdoutBuf.String() + stderrBuf.String()
-	if inspect.ExitCode != 0 {
-		return output, fmt.Errorf("exec exit %d", inspect.ExitCode)
-	}
-
-	return output, nil
-}
-
-// Shell attaches an interactive shell session.
-func (d *DockerRuntime) Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error {
-	ctx := context.Background()
-	execConfig := container.ExecOptions{
-		Cmd:          []string{defaultShell},
-		AttachStdin:  stdin != nil,
-		AttachStdout: true,
-		AttachStderr: true,
-		Tty:          false,
-	}
-
-	resp, err := d.client.ContainerExecCreate(ctx, id, execConfig)
-	if err != nil {
-		return fmt.Errorf("shell exec create: %w", err)
-	}
-
-	attach, err := d.client.ContainerExecAttach(ctx, resp.ID, container.ExecStartOptions{})
-	if err != nil {
-		return fmt.Errorf("shell exec attach: %w", err)
-	}
-	defer attach.Close()
-
-	stdoutWriter := stdout
-	if stdoutWriter == nil {
-		stdoutWriter = io.Discard
-	}
-	stderrWriter := stderr
-	if stderrWriter == nil {
-		stderrWriter = io.Discard
-	}
-
-	stdinDone := make(chan error, 1)
-	if stdin != nil {
-		go func() {
-			_, copyErr := io.Copy(attach.Conn, stdin)
-			err := attach.CloseWrite()
-			if err != nil {
-				return
-			}
-			stdinDone <- copyErr
-		}()
-	} else {
-		err := attach.CloseWrite()
-		if err != nil {
-			return err
-		}
-	}
-
-	if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, attach.Reader); err != nil {
-		return fmt.Errorf("shell copy: %w", err)
-	}
-
-	if stdin != nil {
-		if copyErr := <-stdinDone; copyErr != nil && !errors.Is(copyErr, io.EOF) {
-			return fmt.Errorf("shell stdin: %w", copyErr)
-		}
-	}
-
-	inspect, err := d.client.ContainerExecInspect(ctx, resp.ID)
-	if err != nil {
-		return fmt.Errorf("shell exec inspect: %w", err)
-	}
-
-	if inspect.ExitCode != 0 {
-		return fmt.Errorf("shell exited with %d", inspect.ExitCode)
-	}
-
-	return nil
 }
 
 // Close cleans up Docker client resources.
