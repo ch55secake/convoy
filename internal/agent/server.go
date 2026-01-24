@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -312,6 +314,328 @@ func (s *Server) CheckHealth(_ context.Context, _ *convoypb.HealthRequest) (*con
 		Status:  convoypb.HealthResponse_STATUS_HEALTHY,
 		Message: "ok",
 	}, nil
+}
+
+// Copy handles bidirectional file transfer operations.
+func (s *Server) Copy(stream convoypb.ConvoyService_CopyServer) error {
+	ctx := stream.Context()
+	if err := s.acquire(ctx); err != nil {
+		return err
+	}
+	defer s.release()
+
+	// Receive the start message
+	firstReq, err := stream.Recv()
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to receive start message: %v", err)
+	}
+
+	start := firstReq.GetStart()
+	if start == nil {
+		return status.Error(codes.InvalidArgument, "first message must be CopyStart")
+	}
+
+	switch start.GetDirection() {
+	case convoypb.CopyStart_TO_AGENT:
+		return s.handleCopyToAgent(stream, start)
+	case convoypb.CopyStart_FROM_AGENT:
+		return s.handleCopyFromAgent(stream, start)
+	default:
+		return status.Error(codes.InvalidArgument, "invalid copy direction")
+	}
+}
+
+// handleCopyToAgent receives tar data from client and extracts to local filesystem.
+func (s *Server) handleCopyToAgent(stream convoypb.ConvoyService_CopyServer, start *convoypb.CopyStart) error {
+	destPath := start.GetPath()
+	if destPath == "" {
+		destPath = "."
+	}
+	destRoot := filepath.Clean(destPath)
+
+	// Ensure destination directory exists
+	if err := os.MkdirAll(destRoot, 0o755); err != nil {
+		return status.Errorf(codes.Internal, "failed to create destination directory: %v", err)
+	}
+
+	// Create a pipe to stream tar data
+	pr, pw := io.Pipe()
+	tarReader := tar.NewReader(pr)
+
+	var extractErr error
+	var totalBytes int64
+	var fileCount int32
+	extractDone := make(chan struct{})
+
+	// Extract tar in a goroutine
+	go func() {
+		defer close(extractDone)
+		for {
+			header, err := tarReader.Next()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				extractErr = fmt.Errorf("tar read error: %w", err)
+				return
+			}
+
+			targetPath := filepath.Join(destRoot, header.Name)
+
+			// Security check: prevent path traversal
+			rel, err := filepath.Rel(destRoot, targetPath)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				extractErr = fmt.Errorf("invalid tar entry path: %s", header.Name)
+				return
+			}
+
+			switch header.Typeflag {
+			case tar.TypeDir:
+				if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+					extractErr = fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+					return
+				}
+			case tar.TypeReg:
+				// Ensure parent directory exists
+				if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+					extractErr = fmt.Errorf("failed to create parent directory: %w", err)
+					return
+				}
+
+				file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+				if err != nil {
+					extractErr = fmt.Errorf("failed to create file %s: %w", targetPath, err)
+					return
+				}
+
+				written, err := io.Copy(file, tarReader)
+				_ = file.Close()
+				if err != nil {
+					extractErr = fmt.Errorf("failed to write file %s: %w", targetPath, err)
+					return
+				}
+				totalBytes += written
+				fileCount++
+
+			case tar.TypeSymlink:
+				// Remove existing symlink if overwrite is enabled
+				if start.GetOverwrite() {
+					_ = os.Remove(targetPath)
+				}
+				if err := os.Symlink(header.Linkname, targetPath); err != nil {
+					extractErr = fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
+					return
+				}
+				fileCount++
+			}
+		}
+	}()
+
+	// Receive chunks and write to pipe
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			_ = pw.CloseWithError(err)
+			return status.Errorf(codes.Internal, "receive error: %v", err)
+		}
+
+		chunk := req.GetChunk()
+		if chunk == nil {
+			continue
+		}
+
+		if len(chunk.GetData()) > 0 {
+			if _, err := pw.Write(chunk.GetData()); err != nil {
+				return status.Errorf(codes.Internal, "pipe write error: %v", err)
+			}
+		}
+
+		if chunk.GetEof() {
+			break
+		}
+	}
+
+	// Close pipe writer to signal EOF to tar reader
+	_ = pw.Close()
+
+	// Wait for extraction to complete
+	<-extractDone
+
+	if extractErr != nil {
+		return status.Errorf(codes.Internal, "extraction failed: %v", extractErr)
+	}
+
+	// Send success result
+	return stream.Send(&convoypb.CopyResponse{
+		Payload: &convoypb.CopyResponse_Result{
+			Result: &convoypb.CopyResult{
+				Success:    true,
+				Message:    "copy completed successfully",
+				TotalBytes: totalBytes,
+				FileCount:  fileCount,
+			},
+		},
+	})
+}
+
+// handleCopyFromAgent reads from local filesystem and sends tar data to client.
+func (s *Server) handleCopyFromAgent(stream convoypb.ConvoyService_CopyServer, start *convoypb.CopyStart) error {
+	srcPath := start.GetPath()
+	if srcPath == "" {
+		return status.Error(codes.InvalidArgument, "source path required for pull operation")
+	}
+
+	// Check if source exists
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "source path not found: %v", err)
+	}
+
+	// Create a pipe to stream tar data
+	pr, pw := io.Pipe()
+	tarWriter := tar.NewWriter(pw)
+
+	var tarErr error
+	var totalBytes int64
+	var fileCount int32
+	tarDone := make(chan struct{})
+
+	// Create tar in a goroutine
+	go func() {
+		defer close(tarDone)
+		defer func() {
+			_ = tarWriter.Close()
+			_ = pw.Close()
+		}()
+
+		if srcInfo.IsDir() {
+			tarErr = filepath.Walk(srcPath, func(path string, info os.FileInfo, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+
+				relPath, err := filepath.Rel(srcPath, path)
+				if err != nil {
+					return err
+				}
+
+				// Skip the root directory itself
+				if relPath == "." {
+					return nil
+				}
+
+				return s.addToTar(tarWriter, path, relPath, info, &totalBytes, &fileCount)
+			})
+		} else {
+			// Single file
+			tarErr = s.addToTar(tarWriter, srcPath, filepath.Base(srcPath), srcInfo, &totalBytes, &fileCount)
+		}
+	}()
+
+	// Read from pipe and send chunks
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := pr.Read(buf)
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			if err := stream.Send(&convoypb.CopyResponse{
+				Payload: &convoypb.CopyResponse_Chunk{
+					Chunk: &convoypb.CopyChunk{
+						Data: chunk,
+						Eof:  false,
+					},
+				},
+			}); err != nil {
+				return status.Errorf(codes.Internal, "send error: %v", err)
+			}
+		}
+
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return status.Errorf(codes.Internal, "pipe read error: %v", readErr)
+		}
+	}
+
+	// Wait for tar creation to complete
+	<-tarDone
+
+	if tarErr != nil {
+		return status.Errorf(codes.Internal, "tar creation failed: %v", tarErr)
+	}
+
+	// Send EOF chunk
+	if err := stream.Send(&convoypb.CopyResponse{
+		Payload: &convoypb.CopyResponse_Chunk{
+			Chunk: &convoypb.CopyChunk{
+				Data: nil,
+				Eof:  true,
+			},
+		},
+	}); err != nil {
+		return status.Errorf(codes.Internal, "send EOF error: %v", err)
+	}
+
+	// Send success result
+	return stream.Send(&convoypb.CopyResponse{
+		Payload: &convoypb.CopyResponse_Result{
+			Result: &convoypb.CopyResult{
+				Success:    true,
+				Message:    "copy completed successfully",
+				TotalBytes: totalBytes,
+				FileCount:  fileCount,
+			},
+		},
+	})
+}
+
+// addToTar adds a file or directory to the tar archive.
+func (s *Server) addToTar(tw *tar.Writer, srcPath, relPath string, info os.FileInfo, totalBytes *int64, fileCount *int32) error {
+	header, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return err
+	}
+	header.Name = relPath
+
+	// Handle symlinks
+	if info.Mode()&os.ModeSymlink != 0 {
+		linkTarget, err := os.Readlink(srcPath)
+		if err != nil {
+			return err
+		}
+		header.Linkname = linkTarget
+	}
+
+	if err := tw.WriteHeader(header); err != nil {
+		return err
+	}
+
+	if info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		*fileCount++
+		return nil
+	}
+
+	file, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	written, err := io.Copy(tw, file)
+	if err != nil {
+		return err
+	}
+	*totalBytes += written
+	*fileCount++
+
+	return nil
 }
 
 func (s *Server) acquire(ctx context.Context) error {
