@@ -42,7 +42,6 @@ func init() {
 
 	rootCmd.AddCommand(
 		newConfigCmd(),
-		newCreateCmd(),
 		newListCmd(),
 		newHealthCmd(),
 		newStartCmd(),
