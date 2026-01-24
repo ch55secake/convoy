@@ -3,7 +3,6 @@ package orchestrator
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 )
@@ -37,8 +36,6 @@ type Runtime interface {
 	StartContainer(id string) error
 	StopContainer(id string) error
 	RemoveContainer(id string) error
-	Exec(id string, cmd []string) (string, error)
-	Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error
 	ListContainers() ([]*Container, error)
 }
 
@@ -105,28 +102,6 @@ func (m *Manager) Remove(id string) error {
 	}
 
 	return m.runtime.RemoveContainer(id)
-}
-
-// Exec executes a command inside the container and returns its combined output.
-func (m *Manager) Exec(id string, cmd []string) (string, error) {
-	if id == "" {
-		return "", errors.New("container id is required")
-	}
-
-	if len(cmd) == 0 {
-		return "", errors.New("command is required")
-	}
-
-	return m.runtime.Exec(id, cmd)
-}
-
-// Shell attaches an interactive shell session to the container.
-func (m *Manager) Shell(id string, stdin io.Reader, stdout, stderr io.Writer) error {
-	if id == "" {
-		return errors.New("container id is required")
-	}
-
-	return m.runtime.Shell(id, stdin, stdout, stderr)
 }
 
 func validateSpec(spec ContainerSpec) error {

@@ -1,0 +1,6 @@
+# Configuration for convoy agent
+grpc_port: 6000
+shell_path: /bin/bash
+max_concurrent: 4
+exec_timeout_sec: 60
+agent_id: convoy-agent
