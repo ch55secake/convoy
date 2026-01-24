@@ -122,6 +122,55 @@ func (HealthResponse_Status) EnumDescriptor() ([]byte, []int) {
 	return file_api_convoy_proto_rawDescGZIP(), []int{9, 0}
 }
 
+type CopyStart_Direction int32
+
+const (
+	CopyStart_DIRECTION_UNSPECIFIED CopyStart_Direction = 0
+	CopyStart_TO_AGENT              CopyStart_Direction = 1 // Client sends tar data to agent (push)
+	CopyStart_FROM_AGENT            CopyStart_Direction = 2 // Agent sends tar data to client (pull)
+)
+
+// Enum value maps for CopyStart_Direction.
+var (
+	CopyStart_Direction_name = map[int32]string{
+		0: "DIRECTION_UNSPECIFIED",
+		1: "TO_AGENT",
+		2: "FROM_AGENT",
+	}
+	CopyStart_Direction_value = map[string]int32{
+		"DIRECTION_UNSPECIFIED": 0,
+		"TO_AGENT":              1,
+		"FROM_AGENT":            2,
+	}
+)
+
+func (x CopyStart_Direction) Enum() *CopyStart_Direction {
+	p := new(CopyStart_Direction)
+	*p = x
+	return p
+}
+
+func (x CopyStart_Direction) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CopyStart_Direction) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_convoy_proto_enumTypes[2].Descriptor()
+}
+
+func (CopyStart_Direction) Type() protoreflect.EnumType {
+	return &file_api_convoy_proto_enumTypes[2]
+}
+
+func (x CopyStart_Direction) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CopyStart_Direction.Descriptor instead.
+func (CopyStart_Direction) EnumDescriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{11, 0}
+}
+
 // CommandRequest describes a non-interactive command to execute.
 type CommandRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -744,6 +793,424 @@ func (x *HealthResponse) GetMessage() string {
 	return ""
 }
 
+// CopyRequest streams file data to/from the agent.
+type CopyRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*CopyRequest_Start
+	//	*CopyRequest_Chunk
+	Payload       isCopyRequest_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopyRequest) Reset() {
+	*x = CopyRequest{}
+	mi := &file_api_convoy_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyRequest) ProtoMessage() {}
+
+func (x *CopyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyRequest.ProtoReflect.Descriptor instead.
+func (*CopyRequest) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CopyRequest) GetPayload() isCopyRequest_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *CopyRequest) GetStart() *CopyStart {
+	if x != nil {
+		if x, ok := x.Payload.(*CopyRequest_Start); ok {
+			return x.Start
+		}
+	}
+	return nil
+}
+
+func (x *CopyRequest) GetChunk() *CopyChunk {
+	if x != nil {
+		if x, ok := x.Payload.(*CopyRequest_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+type isCopyRequest_Payload interface {
+	isCopyRequest_Payload()
+}
+
+type CopyRequest_Start struct {
+	Start *CopyStart `protobuf:"bytes,1,opt,name=start,proto3,oneof"`
+}
+
+type CopyRequest_Chunk struct {
+	Chunk *CopyChunk `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+func (*CopyRequest_Start) isCopyRequest_Payload() {}
+
+func (*CopyRequest_Chunk) isCopyRequest_Payload() {}
+
+// CopyStart initiates a copy operation.
+type CopyStart struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Direction     CopyStart_Direction    `protobuf:"varint,1,opt,name=direction,proto3,enum=convoy.CopyStart_Direction" json:"direction,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`            // Destination path (TO_AGENT) or source path (FROM_AGENT)
+	Overwrite     bool                   `protobuf:"varint,3,opt,name=overwrite,proto3" json:"overwrite,omitempty"` // Whether to overwrite existing files
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopyStart) Reset() {
+	*x = CopyStart{}
+	mi := &file_api_convoy_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyStart) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyStart) ProtoMessage() {}
+
+func (x *CopyStart) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyStart.ProtoReflect.Descriptor instead.
+func (*CopyStart) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *CopyStart) GetDirection() CopyStart_Direction {
+	if x != nil {
+		return x.Direction
+	}
+	return CopyStart_DIRECTION_UNSPECIFIED
+}
+
+func (x *CopyStart) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *CopyStart) GetOverwrite() bool {
+	if x != nil {
+		return x.Overwrite
+	}
+	return false
+}
+
+// CopyChunk contains a chunk of tar data.
+type CopyChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	Eof           bool                   `protobuf:"varint,2,opt,name=eof,proto3" json:"eof,omitempty"` // Signals end of tar stream
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopyChunk) Reset() {
+	*x = CopyChunk{}
+	mi := &file_api_convoy_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyChunk) ProtoMessage() {}
+
+func (x *CopyChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyChunk.ProtoReflect.Descriptor instead.
+func (*CopyChunk) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CopyChunk) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *CopyChunk) GetEof() bool {
+	if x != nil {
+		return x.Eof
+	}
+	return false
+}
+
+// CopyResponse streams status and data back from the agent.
+type CopyResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*CopyResponse_Progress
+	//	*CopyResponse_Chunk
+	//	*CopyResponse_Result
+	Payload       isCopyResponse_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopyResponse) Reset() {
+	*x = CopyResponse{}
+	mi := &file_api_convoy_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyResponse) ProtoMessage() {}
+
+func (x *CopyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyResponse.ProtoReflect.Descriptor instead.
+func (*CopyResponse) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CopyResponse) GetPayload() isCopyResponse_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *CopyResponse) GetProgress() *CopyProgress {
+	if x != nil {
+		if x, ok := x.Payload.(*CopyResponse_Progress); ok {
+			return x.Progress
+		}
+	}
+	return nil
+}
+
+func (x *CopyResponse) GetChunk() *CopyChunk {
+	if x != nil {
+		if x, ok := x.Payload.(*CopyResponse_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+func (x *CopyResponse) GetResult() *CopyResult {
+	if x != nil {
+		if x, ok := x.Payload.(*CopyResponse_Result); ok {
+			return x.Result
+		}
+	}
+	return nil
+}
+
+type isCopyResponse_Payload interface {
+	isCopyResponse_Payload()
+}
+
+type CopyResponse_Progress struct {
+	Progress *CopyProgress `protobuf:"bytes,1,opt,name=progress,proto3,oneof"`
+}
+
+type CopyResponse_Chunk struct {
+	Chunk *CopyChunk `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+type CopyResponse_Result struct {
+	Result *CopyResult `protobuf:"bytes,3,opt,name=result,proto3,oneof"`
+}
+
+func (*CopyResponse_Progress) isCopyResponse_Payload() {}
+
+func (*CopyResponse_Chunk) isCopyResponse_Payload() {}
+
+func (*CopyResponse_Result) isCopyResponse_Payload() {}
+
+// CopyProgress reports ongoing transfer status.
+type CopyProgress struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	BytesTransferred int64                  `protobuf:"varint,1,opt,name=bytes_transferred,json=bytesTransferred,proto3" json:"bytes_transferred,omitempty"`
+	CurrentFile      string                 `protobuf:"bytes,2,opt,name=current_file,json=currentFile,proto3" json:"current_file,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *CopyProgress) Reset() {
+	*x = CopyProgress{}
+	mi := &file_api_convoy_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyProgress) ProtoMessage() {}
+
+func (x *CopyProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyProgress.ProtoReflect.Descriptor instead.
+func (*CopyProgress) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CopyProgress) GetBytesTransferred() int64 {
+	if x != nil {
+		return x.BytesTransferred
+	}
+	return 0
+}
+
+func (x *CopyProgress) GetCurrentFile() string {
+	if x != nil {
+		return x.CurrentFile
+	}
+	return ""
+}
+
+// CopyResult indicates the final outcome of the copy operation.
+type CopyResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	TotalBytes    int64                  `protobuf:"varint,3,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	FileCount     int32                  `protobuf:"varint,4,opt,name=file_count,json=fileCount,proto3" json:"file_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopyResult) Reset() {
+	*x = CopyResult{}
+	mi := &file_api_convoy_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyResult) ProtoMessage() {}
+
+func (x *CopyResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyResult.ProtoReflect.Descriptor instead.
+func (*CopyResult) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *CopyResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CopyResult) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CopyResult) GetTotalBytes() int64 {
+	if x != nil {
+		return x.TotalBytes
+	}
+	return 0
+}
+
+func (x *CopyResult) GetFileCount() int32 {
+	if x != nil {
+		return x.FileCount
+	}
+	return 0
+}
+
 var File_api_convoy_proto protoreflect.FileDescriptor
 
 const file_api_convoy_proto_rawDesc = "" +
@@ -803,11 +1270,44 @@ const file_api_convoy_proto_rawDesc = "" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_HEALTHY\x10\x01\x12\x13\n" +
 	"\x0fSTATUS_DEGRADED\x10\x02\x12\x14\n" +
-	"\x10STATUS_UNHEALTHY\x10\x032\xd7\x01\n" +
+	"\x10STATUS_UNHEALTHY\x10\x03\"n\n" +
+	"\vCopyRequest\x12)\n" +
+	"\x05start\x18\x01 \x01(\v2\x11.convoy.CopyStartH\x00R\x05start\x12)\n" +
+	"\x05chunk\x18\x02 \x01(\v2\x11.convoy.CopyChunkH\x00R\x05chunkB\t\n" +
+	"\apayload\"\xbe\x01\n" +
+	"\tCopyStart\x129\n" +
+	"\tdirection\x18\x01 \x01(\x0e2\x1b.convoy.CopyStart.DirectionR\tdirection\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1c\n" +
+	"\toverwrite\x18\x03 \x01(\bR\toverwrite\"D\n" +
+	"\tDirection\x12\x19\n" +
+	"\x15DIRECTION_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bTO_AGENT\x10\x01\x12\x0e\n" +
+	"\n" +
+	"FROM_AGENT\x10\x02\"1\n" +
+	"\tCopyChunk\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12\x10\n" +
+	"\x03eof\x18\x02 \x01(\bR\x03eof\"\xa6\x01\n" +
+	"\fCopyResponse\x122\n" +
+	"\bprogress\x18\x01 \x01(\v2\x14.convoy.CopyProgressH\x00R\bprogress\x12)\n" +
+	"\x05chunk\x18\x02 \x01(\v2\x11.convoy.CopyChunkH\x00R\x05chunk\x12,\n" +
+	"\x06result\x18\x03 \x01(\v2\x12.convoy.CopyResultH\x00R\x06resultB\t\n" +
+	"\apayload\"^\n" +
+	"\fCopyProgress\x12+\n" +
+	"\x11bytes_transferred\x18\x01 \x01(\x03R\x10bytesTransferred\x12!\n" +
+	"\fcurrent_file\x18\x02 \x01(\tR\vcurrentFile\"\x80\x01\n" +
+	"\n" +
+	"CopyResult\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1f\n" +
+	"\vtotal_bytes\x18\x03 \x01(\x03R\n" +
+	"totalBytes\x12\x1d\n" +
+	"\n" +
+	"file_count\x18\x04 \x01(\x05R\tfileCount2\x90\x02\n" +
 	"\rConvoyService\x12C\n" +
 	"\x0eExecuteCommand\x12\x16.convoy.CommandRequest\x1a\x17.convoy.CommandResponse\"\x00\x12A\n" +
 	"\fExecuteShell\x12\x14.convoy.ShellRequest\x1a\x15.convoy.ShellResponse\"\x00(\x010\x01\x12>\n" +
-	"\vCheckHealth\x12\x15.convoy.HealthRequest\x1a\x16.convoy.HealthResponse\"\x00B\fZ\n" +
+	"\vCheckHealth\x12\x15.convoy.HealthRequest\x1a\x16.convoy.HealthResponse\"\x00\x127\n" +
+	"\x04Copy\x12\x13.convoy.CopyRequest\x1a\x14.convoy.CopyResponse\"\x00(\x010\x01B\fZ\n" +
 	"convoy/apib\x06proto3"
 
 var (
@@ -822,44 +1322,59 @@ func file_api_convoy_proto_rawDescGZIP() []byte {
 	return file_api_convoy_proto_rawDescData
 }
 
-var file_api_convoy_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_api_convoy_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_api_convoy_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_api_convoy_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_api_convoy_proto_goTypes = []any{
 	(ShellOutput_Stream)(0),    // 0: convoy.ShellOutput.Stream
 	(HealthResponse_Status)(0), // 1: convoy.HealthResponse.Status
-	(*CommandRequest)(nil),     // 2: convoy.CommandRequest
-	(*CommandResponse)(nil),    // 3: convoy.CommandResponse
-	(*ShellRequest)(nil),       // 4: convoy.ShellRequest
-	(*ShellStart)(nil),         // 5: convoy.ShellStart
-	(*ShellInput)(nil),         // 6: convoy.ShellInput
-	(*ShellResponse)(nil),      // 7: convoy.ShellResponse
-	(*ShellOutput)(nil),        // 8: convoy.ShellOutput
-	(*ShellExit)(nil),          // 9: convoy.ShellExit
-	(*HealthRequest)(nil),      // 10: convoy.HealthRequest
-	(*HealthResponse)(nil),     // 11: convoy.HealthResponse
-	nil,                        // 12: convoy.CommandRequest.EnvEntry
-	nil,                        // 13: convoy.ShellStart.EnvEntry
+	(CopyStart_Direction)(0),   // 2: convoy.CopyStart.Direction
+	(*CommandRequest)(nil),     // 3: convoy.CommandRequest
+	(*CommandResponse)(nil),    // 4: convoy.CommandResponse
+	(*ShellRequest)(nil),       // 5: convoy.ShellRequest
+	(*ShellStart)(nil),         // 6: convoy.ShellStart
+	(*ShellInput)(nil),         // 7: convoy.ShellInput
+	(*ShellResponse)(nil),      // 8: convoy.ShellResponse
+	(*ShellOutput)(nil),        // 9: convoy.ShellOutput
+	(*ShellExit)(nil),          // 10: convoy.ShellExit
+	(*HealthRequest)(nil),      // 11: convoy.HealthRequest
+	(*HealthResponse)(nil),     // 12: convoy.HealthResponse
+	(*CopyRequest)(nil),        // 13: convoy.CopyRequest
+	(*CopyStart)(nil),          // 14: convoy.CopyStart
+	(*CopyChunk)(nil),          // 15: convoy.CopyChunk
+	(*CopyResponse)(nil),       // 16: convoy.CopyResponse
+	(*CopyProgress)(nil),       // 17: convoy.CopyProgress
+	(*CopyResult)(nil),         // 18: convoy.CopyResult
+	nil,                        // 19: convoy.CommandRequest.EnvEntry
+	nil,                        // 20: convoy.ShellStart.EnvEntry
 }
 var file_api_convoy_proto_depIdxs = []int32{
-	12, // 0: convoy.CommandRequest.env:type_name -> convoy.CommandRequest.EnvEntry
-	5,  // 1: convoy.ShellRequest.start:type_name -> convoy.ShellStart
-	6,  // 2: convoy.ShellRequest.input:type_name -> convoy.ShellInput
-	13, // 3: convoy.ShellStart.env:type_name -> convoy.ShellStart.EnvEntry
-	8,  // 4: convoy.ShellResponse.output:type_name -> convoy.ShellOutput
-	9,  // 5: convoy.ShellResponse.exit:type_name -> convoy.ShellExit
+	19, // 0: convoy.CommandRequest.env:type_name -> convoy.CommandRequest.EnvEntry
+	6,  // 1: convoy.ShellRequest.start:type_name -> convoy.ShellStart
+	7,  // 2: convoy.ShellRequest.input:type_name -> convoy.ShellInput
+	20, // 3: convoy.ShellStart.env:type_name -> convoy.ShellStart.EnvEntry
+	9,  // 4: convoy.ShellResponse.output:type_name -> convoy.ShellOutput
+	10, // 5: convoy.ShellResponse.exit:type_name -> convoy.ShellExit
 	0,  // 6: convoy.ShellOutput.stream:type_name -> convoy.ShellOutput.Stream
 	1,  // 7: convoy.HealthResponse.status:type_name -> convoy.HealthResponse.Status
-	2,  // 8: convoy.ConvoyService.ExecuteCommand:input_type -> convoy.CommandRequest
-	4,  // 9: convoy.ConvoyService.ExecuteShell:input_type -> convoy.ShellRequest
-	10, // 10: convoy.ConvoyService.CheckHealth:input_type -> convoy.HealthRequest
-	3,  // 11: convoy.ConvoyService.ExecuteCommand:output_type -> convoy.CommandResponse
-	7,  // 12: convoy.ConvoyService.ExecuteShell:output_type -> convoy.ShellResponse
-	11, // 13: convoy.ConvoyService.CheckHealth:output_type -> convoy.HealthResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	14, // 8: convoy.CopyRequest.start:type_name -> convoy.CopyStart
+	15, // 9: convoy.CopyRequest.chunk:type_name -> convoy.CopyChunk
+	2,  // 10: convoy.CopyStart.direction:type_name -> convoy.CopyStart.Direction
+	17, // 11: convoy.CopyResponse.progress:type_name -> convoy.CopyProgress
+	15, // 12: convoy.CopyResponse.chunk:type_name -> convoy.CopyChunk
+	18, // 13: convoy.CopyResponse.result:type_name -> convoy.CopyResult
+	3,  // 14: convoy.ConvoyService.ExecuteCommand:input_type -> convoy.CommandRequest
+	5,  // 15: convoy.ConvoyService.ExecuteShell:input_type -> convoy.ShellRequest
+	11, // 16: convoy.ConvoyService.CheckHealth:input_type -> convoy.HealthRequest
+	13, // 17: convoy.ConvoyService.Copy:input_type -> convoy.CopyRequest
+	4,  // 18: convoy.ConvoyService.ExecuteCommand:output_type -> convoy.CommandResponse
+	8,  // 19: convoy.ConvoyService.ExecuteShell:output_type -> convoy.ShellResponse
+	12, // 20: convoy.ConvoyService.CheckHealth:output_type -> convoy.HealthResponse
+	16, // 21: convoy.ConvoyService.Copy:output_type -> convoy.CopyResponse
+	18, // [18:22] is the sub-list for method output_type
+	14, // [14:18] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_api_convoy_proto_init() }
@@ -875,13 +1390,22 @@ func file_api_convoy_proto_init() {
 		(*ShellResponse_Output)(nil),
 		(*ShellResponse_Exit)(nil),
 	}
+	file_api_convoy_proto_msgTypes[10].OneofWrappers = []any{
+		(*CopyRequest_Start)(nil),
+		(*CopyRequest_Chunk)(nil),
+	}
+	file_api_convoy_proto_msgTypes[13].OneofWrappers = []any{
+		(*CopyResponse_Progress)(nil),
+		(*CopyResponse_Chunk)(nil),
+		(*CopyResponse_Result)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_convoy_proto_rawDesc), len(file_api_convoy_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   12,
+			NumEnums:      3,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

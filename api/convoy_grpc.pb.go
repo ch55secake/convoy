@@ -22,6 +22,7 @@ const (
 	ConvoyService_ExecuteCommand_FullMethodName = "/convoy.ConvoyService/ExecuteCommand"
 	ConvoyService_ExecuteShell_FullMethodName   = "/convoy.ConvoyService/ExecuteShell"
 	ConvoyService_CheckHealth_FullMethodName    = "/convoy.ConvoyService/CheckHealth"
+	ConvoyService_Copy_FullMethodName           = "/convoy.ConvoyService/Copy"
 )
 
 // ConvoyServiceClient is the client API for ConvoyService service.
@@ -33,6 +34,7 @@ type ConvoyServiceClient interface {
 	ExecuteCommand(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error)
 	ExecuteShell(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ShellRequest, ShellResponse], error)
 	CheckHealth(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
+	Copy(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[CopyRequest, CopyResponse], error)
 }
 
 type convoyServiceClient struct {
@@ -76,6 +78,19 @@ func (c *convoyServiceClient) CheckHealth(ctx context.Context, in *HealthRequest
 	return out, nil
 }
 
+func (c *convoyServiceClient) Copy(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[CopyRequest, CopyResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ConvoyService_ServiceDesc.Streams[1], ConvoyService_Copy_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[CopyRequest, CopyResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ConvoyService_CopyClient = grpc.BidiStreamingClient[CopyRequest, CopyResponse]
+
 // ConvoyServiceServer is the server API for ConvoyService service.
 // All implementations must embed UnimplementedConvoyServiceServer
 // for forward compatibility.
@@ -85,6 +100,7 @@ type ConvoyServiceServer interface {
 	ExecuteCommand(context.Context, *CommandRequest) (*CommandResponse, error)
 	ExecuteShell(grpc.BidiStreamingServer[ShellRequest, ShellResponse]) error
 	CheckHealth(context.Context, *HealthRequest) (*HealthResponse, error)
+	Copy(grpc.BidiStreamingServer[CopyRequest, CopyResponse]) error
 	mustEmbedUnimplementedConvoyServiceServer()
 }
 
@@ -103,6 +119,9 @@ func (UnimplementedConvoyServiceServer) ExecuteShell(grpc.BidiStreamingServer[Sh
 }
 func (UnimplementedConvoyServiceServer) CheckHealth(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CheckHealth not implemented")
+}
+func (UnimplementedConvoyServiceServer) Copy(grpc.BidiStreamingServer[CopyRequest, CopyResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Copy not implemented")
 }
 func (UnimplementedConvoyServiceServer) mustEmbedUnimplementedConvoyServiceServer() {}
 func (UnimplementedConvoyServiceServer) testEmbeddedByValue()                       {}
@@ -168,6 +187,13 @@ func _ConvoyService_CheckHealth_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ConvoyService_Copy_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ConvoyServiceServer).Copy(&grpc.GenericServerStream[CopyRequest, CopyResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ConvoyService_CopyServer = grpc.BidiStreamingServer[CopyRequest, CopyResponse]
+
 // ConvoyService_ServiceDesc is the grpc.ServiceDesc for ConvoyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -188,6 +214,12 @@ var ConvoyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ExecuteShell",
 			Handler:       _ConvoyService_ExecuteShell_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Copy",
+			Handler:       _ConvoyService_Copy_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

@@ -9,6 +9,7 @@ service ConvoyService {
   rpc ExecuteCommand (CommandRequest) returns (CommandResponse) {}
   rpc ExecuteShell (stream ShellRequest) returns (stream ShellResponse) {}
   rpc CheckHealth (HealthRequest) returns (HealthResponse) {}
+  rpc Copy (stream CopyRequest) returns (stream CopyResponse) {}
 }
 
 // CommandRequest describes a non-interactive command to execute.
@@ -88,4 +89,53 @@ message HealthResponse {
   }
   Status status = 1;
   string message = 2;
+}
+
+// CopyRequest streams file data to/from the agent.
+message CopyRequest {
+  oneof payload {
+    CopyStart start = 1;
+    CopyChunk chunk = 2;
+  }
+}
+
+// CopyStart initiates a copy operation.
+message CopyStart {
+  enum Direction {
+    DIRECTION_UNSPECIFIED = 0;
+    TO_AGENT = 1;   // Client sends tar data to agent (push)
+    FROM_AGENT = 2; // Agent sends tar data to client (pull)
+  }
+  Direction direction = 1;
+  string path = 2;       // Destination path (TO_AGENT) or source path (FROM_AGENT)
+  bool overwrite = 3;    // Whether to overwrite existing files
+}
+
+// CopyChunk contains a chunk of tar data.
+message CopyChunk {
+  bytes data = 1;
+  bool eof = 2; // Signals end of tar stream
+}
+
+// CopyResponse streams status and data back from the agent.
+message CopyResponse {
+  oneof payload {
+    CopyProgress progress = 1;
+    CopyChunk chunk = 2;
+    CopyResult result = 3;
+  }
+}
+
+// CopyProgress reports ongoing transfer status.
+message CopyProgress {
+  int64 bytes_transferred = 1;
+  string current_file = 2;
+}
+
+// CopyResult indicates the final outcome of the copy operation.
+message CopyResult {
+  bool success = 1;
+  string message = 2;
+  int64 total_bytes = 3;
+  int32 file_count = 4;
 }

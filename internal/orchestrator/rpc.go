@@ -106,6 +106,21 @@ func (r *RPC) CheckHealth(ctx context.Context, endpoint string, req *convoypb.He
 	return client.CheckHealth(ctx, req)
 }
 
+// Copy opens a bidirectional stream for file transfer operations.
+func (r *RPC) Copy(ctx context.Context, endpoint string) (convoypb.ConvoyService_CopyClient, error) {
+	client, err := r.client(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	stream, err := client.Copy(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return stream, nil
+}
+
 func (r *RPC) client(ctx context.Context, endpoint string) (convoypb.ConvoyServiceClient, error) {
 	if endpoint == "" {
 		return nil, errors.New("endpoint is required")

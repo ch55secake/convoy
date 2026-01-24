@@ -50,6 +50,7 @@ func init() {
 		newRemoveCmd(),
 		newExecCmd(),
 		newShellCmd(),
+		newCopyCmd(),
 	)
 }
 
