@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"archive/tar"
@@ -23,7 +23,7 @@ type copyEndpoint struct {
 	path        string
 }
 
-func newCopyCmd() *cobra.Command {
+func NewCopyCmd() *cobra.Command {
 	var (
 		timeout   time.Duration
 		overwrite bool

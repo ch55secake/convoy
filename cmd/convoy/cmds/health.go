@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"context"
@@ -20,7 +20,7 @@ type healthTarget struct {
 	Container *orchestrator.Container
 }
 
-func newHealthCmd() *cobra.Command {
+func NewHealthCmd() *cobra.Command {
 	var checkAll bool
 	var timeout time.Duration
 

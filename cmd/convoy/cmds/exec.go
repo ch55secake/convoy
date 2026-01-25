@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newExecCmd() *cobra.Command {
+func NewExecCmd() *cobra.Command {
 	var (
 		envVars []string
 		workDir string
