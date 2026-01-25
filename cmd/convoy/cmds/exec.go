@@ -7,11 +7,11 @@ import (
 	"time"
 
 	convoypb "convoy/api"
-	"convoy/internal/orchestrator"
 
 	"github.com/spf13/cobra"
 )
 
+// NewExecCmd creates the exec command for running commands inside containers.
 func NewExecCmd() *cobra.Command {
 	var (
 		envVars []string
@@ -29,31 +29,17 @@ func NewExecCmd() *cobra.Command {
 			containerRef := args[0]
 			commandArgs := []string{"sh", "-c", strings.Join(args[1:], " ")}
 
-			app, err := getApp()
+			containers, err := LoadContainers()
 			if err != nil {
 				return err
 			}
 
-			mgr, err := app.Manager()
+			container, err := containers.ResolveWithEndpoint(containerRef)
 			if err != nil {
 				return err
 			}
 
-			containers, err := mgr.List()
-			if err != nil {
-				return err
-			}
-
-			container := resolveContainer(containerRef, containers)
-			if container == nil {
-				return fmt.Errorf("container not found: %s", containerRef)
-			}
-
-			if container.Endpoint == "" {
-				return fmt.Errorf("container %s has no gRPC endpoint", containerRef)
-			}
-
-			env := parseEnvVars(envVars)
+			env := ParseEnvVars(envVars)
 
 			req := &convoypb.CommandRequest{
 				Args:           commandArgs,
@@ -62,10 +48,7 @@ func NewExecCmd() *cobra.Command {
 				TimeoutSeconds: int32(timeout.Seconds()),
 			}
 
-			rpc := orchestrator.NewRPC(orchestrator.RPCConfig{
-				DialTimeout: timeout,
-				CallTimeout: timeout,
-			})
+			rpc := NewRPCClientWithTimeout(timeout)
 			defer func() {
 				_ = rpc.Close()
 			}()
@@ -95,15 +78,4 @@ func NewExecCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Second, "Timeout for command execution")
 
 	return cmd
-}
-
-// parseEnvVars converts ["KEY=value", ...] to map[string]string.
-func parseEnvVars(envVars []string) map[string]string {
-	env := make(map[string]string)
-	for _, e := range envVars {
-		if idx := strings.Index(e, "="); idx > 0 {
-			env[e[:idx]] = e[idx+1:]
-		}
-	}
-	return env
 }

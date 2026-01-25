@@ -14,12 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type healthTarget struct {
-	Label     string
-	Endpoint  string
-	Container *orchestrator.Container
-}
-
+// NewHealthCmd creates the health command for checking container agent health.
 func NewHealthCmd() *cobra.Command {
 	var checkAll bool
 	var timeout time.Duration
@@ -31,17 +26,7 @@ func NewHealthCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app, err := getApp()
-			if err != nil {
-				return err
-			}
-
-			mgr, err := app.Manager()
-			if err != nil {
-				return err
-			}
-
-			containers, err := mgr.List()
+			containers, err := LoadContainers()
 			if err != nil {
 				return err
 			}
@@ -53,7 +38,7 @@ func NewHealthCmd() *cobra.Command {
 			_, _ = fmt.Fprintln(writer, "NAME\tSTATUS")
 
 			if checkAll {
-				return runHealthChecks(writer, containers, timeout)
+				return runHealthChecks(writer, containers.List(), timeout)
 			}
 
 			if len(args) == 0 {
@@ -73,7 +58,7 @@ func NewHealthCmd() *cobra.Command {
 				return errors.New("no matching containers found")
 			}
 
-			if err := checkTargets(writer, targets, timeout); err != nil {
+			if err := checkHealthTargets(writer, targets, timeout); err != nil {
 				failed = true
 			}
 
@@ -90,6 +75,13 @@ func NewHealthCmd() *cobra.Command {
 	return cmd
 }
 
+// healthTarget represents a container to check health on.
+type healthTarget struct {
+	Label     string
+	Endpoint  string
+	Container *orchestrator.Container
+}
+
 func runHealthChecks(writer io.Writer, containers []*orchestrator.Container, timeout time.Duration) error {
 	if len(containers) == 0 {
 		_, _ = fmt.Fprintln(writer, "all\tunhealthy: no containers registered")
@@ -101,12 +93,8 @@ func runHealthChecks(writer io.Writer, containers []*orchestrator.Container, tim
 		if container == nil {
 			continue
 		}
-		label := container.Name
-		if label == "" {
-			label = container.ID
-		}
 		targets = append(targets, healthTarget{
-			Label:     label,
+			Label:     ContainerLabel(container),
 			Endpoint:  container.Endpoint,
 			Container: container,
 		})
@@ -117,46 +105,28 @@ func runHealthChecks(writer io.Writer, containers []*orchestrator.Container, tim
 		return errors.New("no containers registered")
 	}
 
-	if err := checkTargets(writer, targets, timeout); err != nil {
+	if err := checkHealthTargets(writer, targets, timeout); err != nil {
 		return errors.New("one or more containers unhealthy")
 	}
 
 	return nil
 }
 
-func resolveHealthTargets(args []string, containers []*orchestrator.Container) ([]healthTarget, []string) {
-	byID := make(map[string]*orchestrator.Container)
-	byName := make(map[string]*orchestrator.Container)
-	for _, container := range containers {
-		if container == nil || container.ID == "" {
-			continue
-		}
-		byID[container.ID] = container
-		if container.Name != "" {
-			byName[container.Name] = container
-		}
-	}
-
+func resolveHealthTargets(args []string, idx *ContainerIndex) ([]healthTarget, []string) {
 	var targets []healthTarget
 	var missing []string
+
 	for _, arg := range args {
 		if arg == "" {
 			continue
 		}
-		container := byName[arg]
-		if container == nil {
-			container = byID[arg]
-		}
+		container := idx.Resolve(arg)
 		if container == nil {
 			missing = append(missing, arg)
 			continue
 		}
-		label := container.Name
-		if label == "" {
-			label = container.ID
-		}
 		targets = append(targets, healthTarget{
-			Label:     label,
+			Label:     ContainerLabel(container),
 			Endpoint:  container.Endpoint,
 			Container: container,
 		})
@@ -165,8 +135,8 @@ func resolveHealthTargets(args []string, containers []*orchestrator.Container) (
 	return targets, missing
 }
 
-func checkTargets(writer io.Writer, targets []healthTarget, timeout time.Duration) error {
-	rpc := orchestrator.NewRPC(orchestrator.RPCConfig{DialTimeout: timeout, CallTimeout: timeout})
+func checkHealthTargets(writer io.Writer, targets []healthTarget, timeout time.Duration) error {
+	rpc := NewRPCClientWithTimeout(timeout)
 	defer func() {
 		_ = rpc.Close()
 	}()

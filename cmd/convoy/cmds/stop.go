@@ -2,11 +2,11 @@ package cmds
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
 
+// NewStopCmd creates the stop command for stopping containers.
 func NewStopCmd() *cobra.Command {
 	var stopAll bool
 
@@ -28,60 +28,40 @@ func NewStopCmd() *cobra.Command {
 
 			registry := app.Registry()
 
-			managed, listErr := mgr.List()
-			if listErr != nil {
-				return fmt.Errorf("list containers: %w", listErr)
+			containers, err := LoadContainers()
+			if err != nil {
+				return fmt.Errorf("list containers: %w", err)
 			}
-			for _, container := range managed {
+
+			// Sync containers to registry
+			for _, container := range containers.List() {
 				_ = registry.Register(container)
 			}
 
-			targetIDs := args
-			if stopAll {
-				containers := registry.List()
-				if len(containers) == 0 {
+			var targetIDs []string
+			switch {
+			case stopAll:
+				targetIDs = containers.AllContainerIDs()
+				if len(targetIDs) == 0 {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No containers registered")
 					return nil
 				}
-
-				targetIDs = make([]string, 0, len(containers))
-				for _, c := range containers {
-					if c == nil {
-						continue
-					}
-					targetIDs = append(targetIDs, c.ID)
-				}
-			} else if len(targetIDs) == 0 {
+			case len(args) == 0:
 				return fmt.Errorf("provide container names or IDs, or use -a")
-			}
-
-			resolve := func(input string) (string, string) {
-				trimmed := strings.TrimSpace(input)
-				if trimmed == "" {
-					return "", ""
+			default:
+				resolved, missing := containers.ResolveContainerIDs(args)
+				for _, m := range missing {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Container not found: %s\n", m)
 				}
-
-				if c, ok := registry.GetByName(trimmed); ok {
-					return c.ID, c.Name
-				}
-
-				if c, ok := registry.Get(trimmed); ok {
-					return c.ID, c.Name
-				}
-
-				return trimmed, trimmed
+				targetIDs = resolved
 			}
 
 			var lastErr error
-			for _, target := range targetIDs {
-				containerID, containerName := resolve(target)
-				if containerID == "" {
-					continue
-				}
-
-				label := containerName
-				if label == "" {
-					label = containerID
+			for _, containerID := range targetIDs {
+				container := containers.Resolve(containerID)
+				label := containerID
+				if container != nil {
+					label = ContainerLabel(container)
 				}
 
 				if err := mgr.Stop(containerID); err != nil {
