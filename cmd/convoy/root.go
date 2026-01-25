@@ -3,6 +3,8 @@ package main
 import (
 	"sync"
 
+	"convoy/cmd/convoy/cmds"
+
 	"github.com/spf13/cobra"
 )
 
@@ -40,16 +42,23 @@ func init() {
 		return initializeApplication()
 	}
 
+	// Wire up the cmds package with the application provider
+	cmds.GetAppFunc = func() (cmds.AppProvider, error) {
+		// Sync CLI options to cmds package
+		cmds.CLIOpts.ConfigPath = cliOpts.configPath
+		return getApp()
+	}
+
 	rootCmd.AddCommand(
-		newConfigCmd(),
-		newListCmd(),
-		newHealthCmd(),
-		newStartCmd(),
-		newStopCmd(),
-		newRemoveCmd(),
-		newExecCmd(),
-		newShellCmd(),
-		newCopyCmd(),
+		cmds.NewConfigCmd(),
+		cmds.NewListCmd(),
+		cmds.NewHealthCmd(),
+		cmds.NewStartCmd(),
+		cmds.NewStopCmd(),
+		cmds.NewRemoveCmd(),
+		cmds.NewExecCmd(),
+		cmds.NewShellCmd(),
+		cmds.NewCopyCmd(),
 	)
 }
 

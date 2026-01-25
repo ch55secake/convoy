@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newShellCmd() *cobra.Command {
+func NewShellCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "shell [container-id]",
 		Short:        "Open an interactive shell",

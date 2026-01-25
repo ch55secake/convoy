@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newStopCmd() *cobra.Command {
+func NewStopCmd() *cobra.Command {
 	var stopAll bool
 
 	cmd := &cobra.Command{

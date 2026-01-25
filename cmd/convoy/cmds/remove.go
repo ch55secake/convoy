@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRemoveCmd() *cobra.Command {
+func NewRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "remove [container-id]",
 		Short:        "Remove containers",

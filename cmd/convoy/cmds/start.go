@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"convoy/internal/orchestrator"
 )
 
-func newStartCmd() *cobra.Command {
+func NewStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "start [container-id]",
 		Short:        "Start containers",

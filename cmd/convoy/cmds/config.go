@@ -1,4 +1,4 @@
-package main
+package cmds
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newConfigCmd() *cobra.Command {
+func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "config",
 		Short:        "Show, validate or initialize configuration",
@@ -41,7 +41,7 @@ func newConfigInitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Create the default configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfgPath := cliOpts.configPath
+			cfgPath := CLIOpts.ConfigPath
 			if cfgPath == "" {
 				var err error
 				cfgPath, err = app.DefaultConfigPath()
