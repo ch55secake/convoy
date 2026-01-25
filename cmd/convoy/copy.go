@@ -695,23 +695,3 @@ func addFileToTar(tw *tar.Writer, srcPath, relPath string, info os.FileInfo) err
 	_, err = io.Copy(tw, file)
 	return err
 }
-
-// resolveContainer finds a container by name or ID.
-func resolveContainer(ref string, containers []*orchestrator.Container) *orchestrator.Container {
-	byID := make(map[string]*orchestrator.Container)
-	byName := make(map[string]*orchestrator.Container)
-	for _, c := range containers {
-		if c == nil || c.ID == "" {
-			continue
-		}
-		byID[c.ID] = c
-		if c.Name != "" {
-			byName[c.Name] = c
-		}
-	}
-
-	if c := byName[ref]; c != nil {
-		return c
-	}
-	return byID[ref]
-}
