@@ -23,6 +23,7 @@ type copyEndpoint struct {
 	path        string
 }
 
+// NewCopyCmd creates the copy command for transferring files between host and containers.
 func NewCopyCmd() *cobra.Command {
 	var (
 		timeout   time.Duration
@@ -91,25 +92,12 @@ func NewCopyCmd() *cobra.Command {
 				return fmt.Errorf("only one host destination allowed per invocation")
 			}
 
-			app, err := getApp()
+			containers, err := LoadContainers()
 			if err != nil {
 				return err
 			}
 
-			mgr, err := app.Manager()
-			if err != nil {
-				return err
-			}
-
-			containers, err := mgr.List()
-			if err != nil {
-				return err
-			}
-
-			rpc := orchestrator.NewRPC(orchestrator.RPCConfig{
-				DialTimeout: timeout,
-				CallTimeout: 0,
-			})
+			rpc := NewRPCClient(timeout, 0)
 			defer func() {
 				_ = rpc.Close()
 			}()
@@ -118,11 +106,11 @@ func NewCopyCmd() *cobra.Command {
 
 			switch {
 			case !source.isContainer:
-				return copyHostToContainers(ctx, cmd, rpc, containers, source, destinations, overwrite)
+				return copyHostToContainers(ctx, cmd, rpc.RPC, containers, source, destinations, overwrite)
 			case len(destinations) == 1 && !destinations[0].isContainer:
-				return copyContainerToHost(ctx, cmd, rpc, containers, source, destinations[0], overwrite)
+				return copyContainerToHost(ctx, cmd, rpc.RPC, containers, source, destinations[0], overwrite)
 			default:
-				return copyContainerToContainers(ctx, cmd, rpc, containers, source, destinations, overwrite)
+				return copyContainerToContainers(ctx, cmd, rpc.RPC, containers, source, destinations, overwrite)
 			}
 		},
 	}
@@ -161,7 +149,7 @@ func parseEndpoint(s string) (copyEndpoint, error) {
 }
 
 // copyHostToContainers copies from local filesystem to one or more containers.
-func copyHostToContainers(ctx context.Context, cmd *cobra.Command, rpc *orchestrator.RPC, containers []*orchestrator.Container, source copyEndpoint, destinations []copyEndpoint, overwrite bool) error {
+func copyHostToContainers(ctx context.Context, cmd *cobra.Command, rpc *orchestrator.RPC, containers *ContainerIndex, source copyEndpoint, destinations []copyEndpoint, overwrite bool) error {
 	srcPath := source.path
 
 	srcInfo, err := os.Stat(srcPath)
@@ -175,15 +163,9 @@ func copyHostToContainers(ctx context.Context, cmd *cobra.Command, rpc *orchestr
 			continue
 		}
 
-		container := resolveContainer(dest.container, containers)
-		if container == nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "container not found: %s\n", dest.container)
-			failed = true
-			continue
-		}
-
-		if container.Endpoint == "" {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "container %s has no gRPC endpoint\n", dest.container)
+		container, err := containers.ResolveWithEndpoint(dest.container)
+		if err != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%v\n", err)
 			failed = true
 			continue
 		}
@@ -206,14 +188,10 @@ func copyHostToContainers(ctx context.Context, cmd *cobra.Command, rpc *orchestr
 }
 
 // copyContainerToHost copies from a container to local filesystem.
-func copyContainerToHost(ctx context.Context, cmd *cobra.Command, rpc *orchestrator.RPC, containers []*orchestrator.Container, source copyEndpoint, dest copyEndpoint, overwrite bool) error {
-	container := resolveContainer(source.container, containers)
-	if container == nil {
-		return fmt.Errorf("container not found: %s", source.container)
-	}
-
-	if container.Endpoint == "" {
-		return fmt.Errorf("container %s has no gRPC endpoint", source.container)
+func copyContainerToHost(ctx context.Context, cmd *cobra.Command, rpc *orchestrator.RPC, containers *ContainerIndex, source copyEndpoint, dest copyEndpoint, overwrite bool) error {
+	container, err := containers.ResolveWithEndpoint(source.container)
+	if err != nil {
+		return err
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Copying %s:%s to %s\n", source.container, source.path, dest.path)
@@ -227,14 +205,10 @@ func copyContainerToHost(ctx context.Context, cmd *cobra.Command, rpc *orchestra
 }
 
 // copyContainerToContainers copies from one container to other containers via host relay.
-func copyContainerToContainers(ctx context.Context, cmd *cobra.Command, rpc *orchestrator.RPC, containers []*orchestrator.Container, source copyEndpoint, destinations []copyEndpoint, overwrite bool) error {
-	srcContainer := resolveContainer(source.container, containers)
-	if srcContainer == nil {
-		return fmt.Errorf("source container not found: %s", source.container)
-	}
-
-	if srcContainer.Endpoint == "" {
-		return fmt.Errorf("source container %s has no gRPC endpoint", source.container)
+func copyContainerToContainers(ctx context.Context, cmd *cobra.Command, rpc *orchestrator.RPC, containers *ContainerIndex, source copyEndpoint, destinations []copyEndpoint, overwrite bool) error {
+	srcContainer, err := containers.ResolveWithEndpoint(source.container)
+	if err != nil {
+		return fmt.Errorf("source %w", err)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Pulling %s:%s for relay...\n", source.container, source.path)
@@ -257,15 +231,9 @@ func copyContainerToContainers(ctx context.Context, cmd *cobra.Command, rpc *orc
 			continue
 		}
 
-		destContainer := resolveContainer(dest.container, containers)
-		if destContainer == nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "destination container not found: %s\n", dest.container)
-			failed = true
-			continue
-		}
-
-		if destContainer.Endpoint == "" {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "destination container %s has no gRPC endpoint\n", dest.container)
+		destContainer, err := containers.ResolveWithEndpoint(dest.container)
+		if err != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "destination %v\n", err)
 			failed = true
 			continue
 		}

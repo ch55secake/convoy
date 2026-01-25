@@ -8,12 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewConfigCmd creates the config command for displaying and managing configuration.
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "config",
 		Short:        "Show, validate or initialize configuration",
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			application, err := getApp()
 			if err != nil {
 				return err
@@ -40,7 +41,7 @@ func newConfigInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create the default configuration file",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfgPath := CLIOpts.ConfigPath
 			if cfgPath == "" {
 				var err error

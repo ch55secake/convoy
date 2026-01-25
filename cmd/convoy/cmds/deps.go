@@ -1,3 +1,4 @@
+// Package cmds provides CLI commands for the convoy tool.
 package cmds
 
 import (
