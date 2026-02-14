@@ -20,11 +20,25 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
+
+// dockerClient defines the Docker client methods used by DockerRuntime.
+type dockerClient interface {
+	ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *ocispec.Platform, containerName string) (container.CreateResponse, error)
+	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error
+	ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error
+	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
+	ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
+	ImagePull(ctx context.Context, refStr string, options imagetypes.PullOptions) (io.ReadCloser, error)
+	Close() error
+}
 
 // DockerRuntime implements Runtime using the Docker Engine API.
 type DockerRuntime struct {
-	client         *client.Client
+	client         dockerClient
 	image          string
 	agentGRPCPort  int
 	network        string
@@ -83,6 +97,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 	portKey := nat.Port(fmt.Sprintf("%d/tcp", d.agentGRPCPort))
 	containerConfig := &container.Config{
 		Image:        image,
+		Hostname:     name,
 		Labels:       labels,
 		Env:          envVars,
 		ExposedPorts: nat.PortSet{portKey: struct{}{}},
