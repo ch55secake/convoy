@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -37,6 +38,13 @@ bash_profile:
   host_path: ""         # Path on host (default: ~/.config/convoy/.bash_profile)
 `
 
+// InitResult contains the result of a configuration initialization operation.
+type InitResult struct {
+	Path        string // The path to the configuration file
+	Overwritten bool   // Whether an existing config was overwritten
+	BackupPath  string // Path to the backup file (empty if no backup created)
+}
+
 // GitCredentialsConfig holds configuration for mounting git credentials into containers.
 type GitCredentialsConfig struct {
 	Enabled        bool `yaml:"enabled"`         // Enable git credential mounting
@@ -63,26 +71,55 @@ type Config struct {
 	BashProfile    BashProfileConfig    `yaml:"bash_profile"`
 }
 
-// InitializeConfig creates a default configuration file at the specified path if it does not already exist.
-// It ensures the directory structure is created and writes the default configuration content to the file.
-// Returns the configuration file path or an error if initialization fails.
-func InitializeConfig(path string) (string, error) {
+// InitializeConfig creates a default configuration file at the specified path.
+// If the file already exists and force is false, it returns an error.
+// If force is true, it creates a backup and overwrites the existing config.
+// Returns the initialization result or an error if the operation fails.
+func InitializeConfig(path string, force bool) (*InitResult, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("create config dir %q: %w", dir, err)
+		return nil, fmt.Errorf("create config dir %q: %w", dir, err)
 	}
 
+	result := &InitResult{
+		Path:        path,
+		Overwritten: false,
+		BackupPath:  "",
+	}
+
+	// Check if config already exists
 	if _, err := os.Stat(path); err == nil {
-		return "", fmt.Errorf("config already exists at %s", path)
+		if !force {
+			return nil, fmt.Errorf("config already exists at %s (use --force to overwrite)", path)
+		}
+
+		// Create backup with timestamp to avoid overwriting existing backups
+		timestamp := time.Now().Format("20060102-150405")
+		backupPath := fmt.Sprintf("%s.backup.%s", path, timestamp)
+
+		// Read existing config
+		existingData, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read existing config for backup %q: %w", path, err)
+		}
+
+		// Write backup
+		if err := os.WriteFile(backupPath, existingData, 0o644); err != nil {
+			return nil, fmt.Errorf("create backup at %q: %w", backupPath, err)
+		}
+
+		result.Overwritten = true
+		result.BackupPath = backupPath
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("stat config %q: %w", path, err)
+		return nil, fmt.Errorf("stat config %q: %w", path, err)
 	}
 
+	// Write the new configuration
 	if err := os.WriteFile(path, []byte(defaultConfigYAML), 0o644); err != nil {
-		return "", fmt.Errorf("write config %q: %w", path, err)
+		return nil, fmt.Errorf("write config %q: %w", path, err)
 	}
 
-	return path, nil
+	return result, nil
 }
 
 // LoadConfig loads configuration from the provided path. When path is empty the
