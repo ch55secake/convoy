@@ -33,7 +33,34 @@ cvy --help
 - `convoy stop <name|id>` – Stops and removes the container identified by name or ID. Use `-a`/`--all` to stop and remove every tracked container.
 - `convoy list` – Lists all containers managed by Convoy along with their CLI name, image, and agent endpoint.
 - `convoy config` - Show, validate or initialize Convoy configuration.
-- `convoy health` - Check if Convoy is running and healthy.  Use `-a`/`--all` to see the health status of every tracked container. 
+- `convoy health` - Check if Convoy is running and healthy.  Use `-a`/`--all` to see the health status of every tracked container.
+- `convoy exec <name|id> <command>` – Execute a non-interactive command inside a container via the gRPC agent.
+- `convoy shell <name|id>` – Open an interactive shell session in a container with full PTY support.
+- `convoy copy <src> <dest>` – Copy files to/from containers using `<name>:<path>` syntax.
+
+### Shell Command
+
+The `shell` command provides an interactive terminal session inside a container with full PTY (pseudo-terminal) support:
+
+```bash
+# Open default shell in container
+convoy shell my-container
+
+# Run a specific shell or command
+convoy shell my-container -- /bin/bash
+
+# With environment variables and working directory
+convoy shell my-container -w /app -e FOO=bar -e DEBUG=1
+
+# With session timeout
+convoy shell my-container --timeout 30m
+```
+
+**Features:**
+- Full terminal emulation (colors, cursor control, line editing)
+- Window resize support (automatically adjusts when you resize your terminal)
+- Ctrl+C forwarding to the remote process
+- Configurable session timeout 
 
 ## Image Setup
 Convoy uses a custom Alpine Linux image with a pre-configured supervisor process to manage gRPC servers. To build the image, run:
