@@ -62,6 +62,23 @@ convoy shell my-container --timeout 30m
 - Ctrl+C forwarding to the remote process
 - Configurable session timeout 
 
+## Development
+
+This project uses [just](https://github.com/casey/just) as a command runner. Install it with:
+```bash
+cargo install just
+```
+
+### Available recipes
+
+Run `just` or `just --list` to see all available recipes:
+
+- `just compile` - Build the Go binary
+- `just test` - Run all tests
+- `just lint` - Run the linter
+- `just clean` - Clean build artifacts
+- `just build-image` - Build the Docker image
+
 ## Image Setup
 Convoy uses a custom Alpine Linux image with a pre-configured supervisor process to manage gRPC servers. To build the image, run:
 ```bash
