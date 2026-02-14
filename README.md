@@ -1,4 +1,7 @@
 # convoy
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ch55secake/convoy)
+
 🚢 Manage multiple containers and multiple tasks at once
 
 Convoy is a Go-based CLI tool for orchestrating multiple Alpine Linux containers via Docker. It uses gRPC for communication, supervisord for process management, and round-robin load balancing to distribute tasks evenly.
