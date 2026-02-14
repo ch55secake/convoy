@@ -18,6 +18,7 @@ import (
 
 	convoypb "convoy/api"
 
+	"github.com/creack/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -141,19 +142,226 @@ func (s *Server) ExecuteShell(stream convoypb.ConvoyService_ExecuteShellServer) 
 		return status.Error(codes.InvalidArgument, "first message must be start")
 	}
 
+	// Use PTY mode if requested
+	if start.GetPty() {
+		return s.executeShellWithPTY(stream, start)
+	}
+
+	return s.executeShellWithPipes(stream, start)
+}
+
+// executeShellWithPTY runs a shell session with a pseudo-terminal.
+func (s *Server) executeShellWithPTY(stream convoypb.ConvoyService_ExecuteShellServer, start *convoypb.ShellStart) error {
+	ctx := stream.Context()
+
 	args := start.GetArgs()
 	if len(args) == 0 {
 		args = []string{s.cfg.ShellPath}
 	}
 
-	cmdCtx := ctx
-	var cancel context.CancelFunc
-	if s.cfg.ExecTimeout > 0 {
-		cmdCtx, cancel = context.WithTimeout(ctx, s.cfg.ExecTimeout)
+	// Set up timeout if specified
+	timeout := durationFromRequest(start.GetTimeoutSeconds(), 0) // 0 means no timeout by default for PTY
+	cmdCtx, cancel := s.createCommandContext(ctx, timeout)
+	if cancel != nil {
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(cmdCtx, args[0], args[1:]...)
+	cmd := exec.CommandContext(cmdCtx, args[0], args[1:]...) //nolint:gosec // args are from trusted gRPC input
+	cmd.Env = mergeEnv(start.GetEnv())
+	cmd.Dir = start.GetWorkDir()
+
+	// Start command with PTY
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return status.Errorf(codes.Internal, "start pty: %v", err)
+	}
+	defer func() {
+		_ = ptmx.Close()
+	}()
+
+	// Set initial window size
+	s.setPTYSize(ptmx, start.GetRows(), start.GetCols())
+
+	// Channel for PTY output
+	outputCh := make(chan *convoypb.ShellResponse, 16)
+	outputDone := make(chan struct{})
+
+	// Read PTY output and send to client
+	go s.readPTYOutput(cmdCtx, ptmx, outputCh, outputDone)
+
+	// Handle input from client
+	inputErrCh := make(chan error, 1)
+	go s.handlePTYInput(stream, ptmx, inputErrCh)
+
+	// Main loop: send output to client
+	if err := s.streamPTYOutput(stream, cmd, cmdCtx, outputCh, outputDone, inputErrCh); err != nil {
+		return err
+	}
+
+	return s.sendShellExit(stream, cmd)
+}
+
+// createCommandContext creates a context with optional timeout.
+func (s *Server) createCommandContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout > 0 {
+		return context.WithTimeout(ctx, timeout)
+	}
+	return ctx, nil
+}
+
+// setPTYSize sets the PTY window size if dimensions are provided.
+func (s *Server) setPTYSize(ptmx *os.File, rows, cols uint32) {
+	if rows > 0 && cols > 0 {
+		if err := pty.Setsize(ptmx, &pty.Winsize{
+			Rows: uint16(rows), //nolint:gosec // terminal size is always small
+			Cols: uint16(cols), //nolint:gosec // terminal size is always small
+		}); err != nil {
+			log.Printf("failed to set pty size: %v", err)
+		}
+	}
+}
+
+// readPTYOutput reads from PTY and sends responses to the output channel.
+func (s *Server) readPTYOutput(ctx context.Context, ptmx *os.File, outputCh chan<- *convoypb.ShellResponse, done chan<- struct{}) {
+	defer close(done)
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := ptmx.Read(buf)
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			resp := &convoypb.ShellResponse{
+				Payload: &convoypb.ShellResponse_Output{
+					Output: &convoypb.ShellOutput{
+						Stream: convoypb.ShellOutput_STDOUT,
+						Data:   chunk,
+					},
+				},
+			}
+			select {
+			case outputCh <- resp:
+			case <-ctx.Done():
+				return
+			}
+		}
+		if readErr != nil {
+			return
+		}
+	}
+}
+
+// handlePTYInput reads from stream and writes to PTY, handling resize events.
+func (s *Server) handlePTYInput(stream convoypb.ConvoyService_ExecuteShellServer, ptmx *os.File, errCh chan<- error) {
+	for {
+		req, recvErr := stream.Recv()
+		if recvErr == io.EOF {
+			errCh <- nil
+			return
+		}
+		if recvErr != nil {
+			errCh <- recvErr
+			return
+		}
+
+		input := req.GetInput()
+		if input == nil {
+			continue
+		}
+
+		// Handle window resize
+		if resize := input.GetResize(); resize != nil {
+			s.setPTYSize(ptmx, resize.GetRows(), resize.GetCols())
+			continue
+		}
+
+		// Handle stdin data
+		if len(input.GetData()) > 0 {
+			if _, writeErr := ptmx.Write(input.GetData()); writeErr != nil {
+				errCh <- writeErr
+				return
+			}
+		}
+
+		if input.GetEof() {
+			errCh <- nil
+			return
+		}
+	}
+}
+
+// streamPTYOutput sends PTY output to the client stream.
+func (s *Server) streamPTYOutput(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, outputDone <-chan struct{}, inputErrCh chan error) error {
+	for {
+		select {
+		case resp, ok := <-outputCh:
+			if !ok {
+				outputCh = nil
+				continue
+			}
+			if resp != nil {
+				if err := stream.Send(resp); err != nil {
+					_ = cmd.Process.Kill()
+					return err
+				}
+			}
+		case inputErr := <-inputErrCh:
+			if inputErr != nil {
+				_ = cmd.Process.Kill()
+				return inputErr
+			}
+			inputErrCh = nil
+		case <-ctx.Done():
+			_ = cmd.Process.Kill()
+			return ctx.Err()
+		default:
+			select {
+			case <-outputDone:
+				return nil
+			default:
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+// sendShellExit sends the shell exit message to the client.
+func (s *Server) sendShellExit(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd) error {
+	exitCode := int32(0)
+	exitMsg := ""
+	if err := cmd.Wait(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			exitCode = int32(exitErr.ExitCode()) //nolint:gosec // exit code fits in int32
+			exitMsg = exitErr.Error()
+		} else {
+			exitCode = -1
+			exitMsg = err.Error()
+		}
+	}
+
+	return stream.Send(&convoypb.ShellResponse{
+		Payload: &convoypb.ShellResponse_Exit{
+			Exit: &convoypb.ShellExit{ExitCode: exitCode, Message: exitMsg},
+		},
+	})
+}
+
+// executeShellWithPipes runs a shell session using stdin/stdout/stderr pipes (legacy mode).
+func (s *Server) executeShellWithPipes(stream convoypb.ConvoyService_ExecuteShellServer, start *convoypb.ShellStart) error {
+	ctx := stream.Context()
+
+	args := start.GetArgs()
+	if len(args) == 0 {
+		args = []string{s.cfg.ShellPath}
+	}
+
+	timeout := durationFromRequest(start.GetTimeoutSeconds(), s.cfg.ExecTimeout)
+	cmdCtx, cancel := s.createCommandContext(ctx, timeout)
+	if cancel != nil {
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(cmdCtx, args[0], args[1:]...) //nolint:gosec // args are from trusted gRPC input
 	cmd.Env = mergeEnv(start.GetEnv())
 	cmd.Dir = start.GetWorkDir()
 
@@ -175,79 +383,92 @@ func (s *Server) ExecuteShell(stream convoypb.ConvoyService_ExecuteShellServer) 
 	}
 
 	outputCh := make(chan *convoypb.ShellResponse, 16)
-	errCh := make(chan error, 2)
+	pipeErrCh := make(chan error, 2)
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	streamPipe := func(r io.Reader, streamType convoypb.ShellOutput_Stream) {
-		defer wg.Done()
-		buf := make([]byte, 32*1024)
-		for {
-			n, readErr := r.Read(buf)
-			if n > 0 {
-				chunk := make([]byte, n)
-				copy(chunk, buf[:n])
-				resp := &convoypb.ShellResponse{
-					Payload: &convoypb.ShellResponse_Output{
-						Output: &convoypb.ShellOutput{Stream: streamType, Data: chunk},
-					},
-				}
-
-				select {
-				case outputCh <- resp:
-				case <-cmdCtx.Done():
-					return
-				}
-			}
-
-			if readErr != nil {
-				if errors.Is(readErr, io.EOF) {
-					return
-				}
-				errCh <- readErr
-				return
-			}
-		}
-	}
-
-	go streamPipe(stdout, convoypb.ShellOutput_STDOUT)
-	go streamPipe(stderr, convoypb.ShellOutput_STDERR)
+	// Start stdout and stderr readers
+	go s.streamPipeOutput(cmdCtx, stdout, convoypb.ShellOutput_STDOUT, outputCh, pipeErrCh, &wg)
+	go s.streamPipeOutput(cmdCtx, stderr, convoypb.ShellOutput_STDERR, outputCh, pipeErrCh, &wg)
 
 	go func() {
 		wg.Wait()
 		close(outputCh)
-		close(errCh)
+		close(pipeErrCh)
 	}()
 
+	// Handle input from client
 	inputErrCh := make(chan error, 1)
-	go func() {
-		for {
-			req, recvErr := stream.Recv()
-			if recvErr == io.EOF {
-				inputErrCh <- stdin.Close()
-				return
+	go s.handlePipeInput(stream, stdin, inputErrCh)
+
+	// Stream output to client
+	if err := s.streamPipeToClient(stream, cmd, cmdCtx, outputCh, pipeErrCh, inputErrCh); err != nil {
+		return err
+	}
+
+	return s.sendShellExit(stream, cmd)
+}
+
+// streamPipeOutput reads from a pipe and sends to the output channel.
+func (s *Server) streamPipeOutput(ctx context.Context, r io.Reader, streamType convoypb.ShellOutput_Stream, outputCh chan<- *convoypb.ShellResponse, errCh chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := r.Read(buf)
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			resp := &convoypb.ShellResponse{
+				Payload: &convoypb.ShellResponse_Output{
+					Output: &convoypb.ShellOutput{Stream: streamType, Data: chunk},
+				},
 			}
-			if recvErr != nil {
-				inputErrCh <- recvErr
-				return
-			}
-			input := req.GetInput()
-			if input == nil {
-				continue
-			}
-			if len(input.GetData()) > 0 {
-				if _, writeErr := stdin.Write(input.GetData()); writeErr != nil {
-					inputErrCh <- writeErr
-					return
-				}
-			}
-			if input.GetEof() {
-				inputErrCh <- stdin.Close()
+			select {
+			case outputCh <- resp:
+			case <-ctx.Done():
 				return
 			}
 		}
-	}()
+		if readErr != nil {
+			if !errors.Is(readErr, io.EOF) {
+				errCh <- readErr
+			}
+			return
+		}
+	}
+}
 
+// handlePipeInput reads from the gRPC stream and writes to stdin pipe.
+func (s *Server) handlePipeInput(stream convoypb.ConvoyService_ExecuteShellServer, stdin io.WriteCloser, errCh chan<- error) {
+	for {
+		req, recvErr := stream.Recv()
+		if recvErr == io.EOF {
+			errCh <- stdin.Close()
+			return
+		}
+		if recvErr != nil {
+			errCh <- recvErr
+			return
+		}
+		input := req.GetInput()
+		if input == nil {
+			continue
+		}
+		if len(input.GetData()) > 0 {
+			if _, writeErr := stdin.Write(input.GetData()); writeErr != nil {
+				errCh <- writeErr
+				return
+			}
+		}
+		if input.GetEof() {
+			errCh <- stdin.Close()
+			return
+		}
+	}
+}
+
+// streamPipeToClient sends pipe output to the client stream.
+func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, pipeErrCh chan error, inputErrCh chan error) error {
 	for {
 		select {
 		case resp, ok := <-outputCh:
@@ -255,14 +476,13 @@ func (s *Server) ExecuteShell(stream convoypb.ConvoyService_ExecuteShellServer) 
 				outputCh = nil
 				continue
 			}
-			if resp == nil {
-				continue
+			if resp != nil {
+				if err := stream.Send(resp); err != nil {
+					_ = cmd.Process.Kill()
+					return err
+				}
 			}
-			if err := stream.Send(resp); err != nil {
-				_ = cmd.Process.Kill()
-				return err
-			}
-		case pipeErr, ok := <-errCh:
+		case pipeErr, ok := <-pipeErrCh:
 			if ok && pipeErr != nil {
 				_ = cmd.Process.Kill()
 				return pipeErr
@@ -273,38 +493,16 @@ func (s *Server) ExecuteShell(stream convoypb.ConvoyService_ExecuteShellServer) 
 				return inputErr
 			}
 			inputErrCh = nil
-		case <-cmdCtx.Done():
+		case <-ctx.Done():
 			_ = cmd.Process.Kill()
-			return cmdCtx.Err()
+			return ctx.Err()
 		default:
 			if outputCh == nil && inputErrCh == nil {
-				goto waitExit
+				return nil
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-
-waitExit:
-	if err := cmd.Wait(); err != nil {
-		var exitErr *exec.ExitError
-		msg := err.Error()
-		exitCode := int32(-1)
-		if errors.As(err, &exitErr) {
-			exitCode = int32(exitErr.ExitCode())
-			msg = exitErr.Error()
-		}
-		return stream.Send(&convoypb.ShellResponse{
-			Payload: &convoypb.ShellResponse_Exit{
-				Exit: &convoypb.ShellExit{ExitCode: exitCode, Message: msg},
-			},
-		})
-	}
-
-	return stream.Send(&convoypb.ShellResponse{
-		Payload: &convoypb.ShellResponse_Exit{
-			Exit: &convoypb.ShellExit{ExitCode: 0, Message: ""},
-		},
-	})
 }
 
 // CheckHealth reports basic readiness.

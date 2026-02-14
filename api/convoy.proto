@@ -41,12 +41,23 @@ message ShellStart {
   repeated string args = 1;
   map<string, string> env = 2;
   string work_dir = 3;
+  bool pty = 4;              // Request PTY allocation
+  uint32 rows = 5;           // Initial terminal rows
+  uint32 cols = 6;           // Initial terminal columns
+  int32 timeout_seconds = 7; // Session timeout (0 = no timeout)
 }
 
-// ShellInput provides stdin data or closes the stream.
+// ShellResize signals terminal window size change.
+message ShellResize {
+  uint32 rows = 1;
+  uint32 cols = 2;
+}
+
+// ShellInput provides stdin data or control signals.
 message ShellInput {
   bytes data = 1;
   bool eof = 2;
+  ShellResize resize = 3;    // Window resize event (optional)
 }
 
 // ShellResponse streams output or exit events.
