@@ -30,6 +30,11 @@ git_credentials:
   enabled: false        # Set to true to enable git credential mounting
   mount_ssh: true       # Mount ~/.ssh as /root/.ssh (read-only)
   mount_gitconfig: true # Mount ~/.gitconfig as /root/.gitconfig (read-only)
+
+# Bash profile mounting - mount a custom bash profile into containers
+bash_profile:
+  enabled: false        # Set to true to enable bash profile mounting
+  host_path: ""         # Path on host (default: ~/.config/convoy/.bash_profile)
 `
 
 // GitCredentialsConfig holds configuration for mounting git credentials into containers.
@@ -37,6 +42,12 @@ type GitCredentialsConfig struct {
 	Enabled        bool `yaml:"enabled"`         // Enable git credential mounting
 	MountSSH       bool `yaml:"mount_ssh"`       // Mount ~/.ssh as /root/.ssh
 	MountGitconfig bool `yaml:"mount_gitconfig"` // Mount ~/.gitconfig as /root/.gitconfig
+}
+
+// BashProfileConfig holds configuration for mounting a bash profile into containers.
+type BashProfileConfig struct {
+	Enabled  bool   `yaml:"enabled"`   // Enable bash profile mounting
+	HostPath string `yaml:"host_path"` // Path on host to the bash profile (default: ~/.config/convoy/.bash_profile)
 }
 
 // Config holds application configuration loaded from YAML.
@@ -49,6 +60,7 @@ type Config struct {
 	PullAlways     bool                 `yaml:"pull_always"`
 	PullTimeoutSec int                  `yaml:"pull_timeout_sec"`
 	GitCredentials GitCredentialsConfig `yaml:"git_credentials"`
+	BashProfile    BashProfileConfig    `yaml:"bash_profile"`
 }
 
 // InitializeConfig creates a default configuration file at the specified path if it does not already exist.
