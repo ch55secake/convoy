@@ -76,20 +76,19 @@ func (r *RPC) ExecuteCommand(ctx context.Context, endpoint string, req *convoypb
 }
 
 // ExecuteShell opens a bidirectional shell stream.
+// For shell sessions, no call timeout is applied since sessions can be long-lived.
+// The caller is responsible for managing the context lifetime.
 func (r *RPC) ExecuteShell(ctx context.Context, endpoint string) (convoypb.ConvoyService_ExecuteShellClient, error) {
 	client, err := r.client(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, r.cfg.CallTimeout)
 	stream, err := client.ExecuteShell(ctx)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
 
-	// The caller is responsible for canceling via stream.Context().Done when finished.
 	return stream, nil
 }
 

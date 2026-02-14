@@ -67,7 +67,7 @@ func (x ShellOutput_Stream) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ShellOutput_Stream.Descriptor instead.
 func (ShellOutput_Stream) EnumDescriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{6, 0}
+	return file_api_convoy_proto_rawDescGZIP(), []int{7, 0}
 }
 
 type HealthResponse_Status int32
@@ -119,7 +119,7 @@ func (x HealthResponse_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HealthResponse_Status.Descriptor instead.
 func (HealthResponse_Status) EnumDescriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{9, 0}
+	return file_api_convoy_proto_rawDescGZIP(), []int{10, 0}
 }
 
 type CopyStart_Direction int32
@@ -168,7 +168,7 @@ func (x CopyStart_Direction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CopyStart_Direction.Descriptor instead.
 func (CopyStart_Direction) EnumDescriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{11, 0}
+	return file_api_convoy_proto_rawDescGZIP(), []int{12, 0}
 }
 
 // CommandRequest describes a non-interactive command to execute.
@@ -394,12 +394,16 @@ func (*ShellRequest_Input) isShellRequest_Payload() {}
 
 // ShellStart initiates a new shell session.
 type ShellStart struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Args          []string               `protobuf:"bytes,1,rep,name=args,proto3" json:"args,omitempty"`
-	Env           map[string]string      `protobuf:"bytes,2,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	WorkDir       string                 `protobuf:"bytes,3,opt,name=work_dir,json=workDir,proto3" json:"work_dir,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Args           []string               `protobuf:"bytes,1,rep,name=args,proto3" json:"args,omitempty"`
+	Env            map[string]string      `protobuf:"bytes,2,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	WorkDir        string                 `protobuf:"bytes,3,opt,name=work_dir,json=workDir,proto3" json:"work_dir,omitempty"`
+	Pty            bool                   `protobuf:"varint,4,opt,name=pty,proto3" json:"pty,omitempty"`                                             // Request PTY allocation
+	Rows           uint32                 `protobuf:"varint,5,opt,name=rows,proto3" json:"rows,omitempty"`                                           // Initial terminal rows
+	Cols           uint32                 `protobuf:"varint,6,opt,name=cols,proto3" json:"cols,omitempty"`                                           // Initial terminal columns
+	TimeoutSeconds int32                  `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"` // Session timeout (0 = no timeout)
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ShellStart) Reset() {
@@ -453,18 +457,100 @@ func (x *ShellStart) GetWorkDir() string {
 	return ""
 }
 
-// ShellInput provides stdin data or closes the stream.
+func (x *ShellStart) GetPty() bool {
+	if x != nil {
+		return x.Pty
+	}
+	return false
+}
+
+func (x *ShellStart) GetRows() uint32 {
+	if x != nil {
+		return x.Rows
+	}
+	return 0
+}
+
+func (x *ShellStart) GetCols() uint32 {
+	if x != nil {
+		return x.Cols
+	}
+	return 0
+}
+
+func (x *ShellStart) GetTimeoutSeconds() int32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+// ShellResize signals terminal window size change.
+type ShellResize struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Rows          uint32                 `protobuf:"varint,1,opt,name=rows,proto3" json:"rows,omitempty"`
+	Cols          uint32                 `protobuf:"varint,2,opt,name=cols,proto3" json:"cols,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShellResize) Reset() {
+	*x = ShellResize{}
+	mi := &file_api_convoy_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShellResize) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShellResize) ProtoMessage() {}
+
+func (x *ShellResize) ProtoReflect() protoreflect.Message {
+	mi := &file_api_convoy_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShellResize.ProtoReflect.Descriptor instead.
+func (*ShellResize) Descriptor() ([]byte, []int) {
+	return file_api_convoy_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ShellResize) GetRows() uint32 {
+	if x != nil {
+		return x.Rows
+	}
+	return 0
+}
+
+func (x *ShellResize) GetCols() uint32 {
+	if x != nil {
+		return x.Cols
+	}
+	return 0
+}
+
+// ShellInput provides stdin data or control signals.
 type ShellInput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	Eof           bool                   `protobuf:"varint,2,opt,name=eof,proto3" json:"eof,omitempty"`
+	Resize        *ShellResize           `protobuf:"bytes,3,opt,name=resize,proto3" json:"resize,omitempty"` // Window resize event (optional)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ShellInput) Reset() {
 	*x = ShellInput{}
-	mi := &file_api_convoy_proto_msgTypes[4]
+	mi := &file_api_convoy_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -476,7 +562,7 @@ func (x *ShellInput) String() string {
 func (*ShellInput) ProtoMessage() {}
 
 func (x *ShellInput) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[4]
+	mi := &file_api_convoy_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +575,7 @@ func (x *ShellInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShellInput.ProtoReflect.Descriptor instead.
 func (*ShellInput) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{4}
+	return file_api_convoy_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ShellInput) GetData() []byte {
@@ -506,6 +592,13 @@ func (x *ShellInput) GetEof() bool {
 	return false
 }
 
+func (x *ShellInput) GetResize() *ShellResize {
+	if x != nil {
+		return x.Resize
+	}
+	return nil
+}
+
 // ShellResponse streams output or exit events.
 type ShellResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -520,7 +613,7 @@ type ShellResponse struct {
 
 func (x *ShellResponse) Reset() {
 	*x = ShellResponse{}
-	mi := &file_api_convoy_proto_msgTypes[5]
+	mi := &file_api_convoy_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +625,7 @@ func (x *ShellResponse) String() string {
 func (*ShellResponse) ProtoMessage() {}
 
 func (x *ShellResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[5]
+	mi := &file_api_convoy_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +638,7 @@ func (x *ShellResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShellResponse.ProtoReflect.Descriptor instead.
 func (*ShellResponse) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{5}
+	return file_api_convoy_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ShellResponse) GetPayload() isShellResponse_Payload {
@@ -600,7 +693,7 @@ type ShellOutput struct {
 
 func (x *ShellOutput) Reset() {
 	*x = ShellOutput{}
-	mi := &file_api_convoy_proto_msgTypes[6]
+	mi := &file_api_convoy_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -612,7 +705,7 @@ func (x *ShellOutput) String() string {
 func (*ShellOutput) ProtoMessage() {}
 
 func (x *ShellOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[6]
+	mi := &file_api_convoy_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -625,7 +718,7 @@ func (x *ShellOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShellOutput.ProtoReflect.Descriptor instead.
 func (*ShellOutput) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{6}
+	return file_api_convoy_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ShellOutput) GetStream() ShellOutput_Stream {
@@ -653,7 +746,7 @@ type ShellExit struct {
 
 func (x *ShellExit) Reset() {
 	*x = ShellExit{}
-	mi := &file_api_convoy_proto_msgTypes[7]
+	mi := &file_api_convoy_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -665,7 +758,7 @@ func (x *ShellExit) String() string {
 func (*ShellExit) ProtoMessage() {}
 
 func (x *ShellExit) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[7]
+	mi := &file_api_convoy_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -678,7 +771,7 @@ func (x *ShellExit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShellExit.ProtoReflect.Descriptor instead.
 func (*ShellExit) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{7}
+	return file_api_convoy_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ShellExit) GetExitCode() int32 {
@@ -705,7 +798,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_api_convoy_proto_msgTypes[8]
+	mi := &file_api_convoy_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -717,7 +810,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[8]
+	mi := &file_api_convoy_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -730,7 +823,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{8}
+	return file_api_convoy_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *HealthRequest) GetProbe() string {
@@ -751,7 +844,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_api_convoy_proto_msgTypes[9]
+	mi := &file_api_convoy_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -763,7 +856,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[9]
+	mi := &file_api_convoy_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -776,7 +869,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{9}
+	return file_api_convoy_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *HealthResponse) GetStatus() HealthResponse_Status {
@@ -807,7 +900,7 @@ type CopyRequest struct {
 
 func (x *CopyRequest) Reset() {
 	*x = CopyRequest{}
-	mi := &file_api_convoy_proto_msgTypes[10]
+	mi := &file_api_convoy_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -819,7 +912,7 @@ func (x *CopyRequest) String() string {
 func (*CopyRequest) ProtoMessage() {}
 
 func (x *CopyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[10]
+	mi := &file_api_convoy_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -832,7 +925,7 @@ func (x *CopyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyRequest.ProtoReflect.Descriptor instead.
 func (*CopyRequest) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{10}
+	return file_api_convoy_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CopyRequest) GetPayload() isCopyRequest_Payload {
@@ -888,7 +981,7 @@ type CopyStart struct {
 
 func (x *CopyStart) Reset() {
 	*x = CopyStart{}
-	mi := &file_api_convoy_proto_msgTypes[11]
+	mi := &file_api_convoy_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -900,7 +993,7 @@ func (x *CopyStart) String() string {
 func (*CopyStart) ProtoMessage() {}
 
 func (x *CopyStart) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[11]
+	mi := &file_api_convoy_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -913,7 +1006,7 @@ func (x *CopyStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyStart.ProtoReflect.Descriptor instead.
 func (*CopyStart) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{11}
+	return file_api_convoy_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CopyStart) GetDirection() CopyStart_Direction {
@@ -948,7 +1041,7 @@ type CopyChunk struct {
 
 func (x *CopyChunk) Reset() {
 	*x = CopyChunk{}
-	mi := &file_api_convoy_proto_msgTypes[12]
+	mi := &file_api_convoy_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -960,7 +1053,7 @@ func (x *CopyChunk) String() string {
 func (*CopyChunk) ProtoMessage() {}
 
 func (x *CopyChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[12]
+	mi := &file_api_convoy_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -973,7 +1066,7 @@ func (x *CopyChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyChunk.ProtoReflect.Descriptor instead.
 func (*CopyChunk) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{12}
+	return file_api_convoy_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CopyChunk) GetData() []byte {
@@ -1005,7 +1098,7 @@ type CopyResponse struct {
 
 func (x *CopyResponse) Reset() {
 	*x = CopyResponse{}
-	mi := &file_api_convoy_proto_msgTypes[13]
+	mi := &file_api_convoy_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1017,7 +1110,7 @@ func (x *CopyResponse) String() string {
 func (*CopyResponse) ProtoMessage() {}
 
 func (x *CopyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[13]
+	mi := &file_api_convoy_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1030,7 +1123,7 @@ func (x *CopyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyResponse.ProtoReflect.Descriptor instead.
 func (*CopyResponse) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{13}
+	return file_api_convoy_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CopyResponse) GetPayload() isCopyResponse_Payload {
@@ -1100,7 +1193,7 @@ type CopyProgress struct {
 
 func (x *CopyProgress) Reset() {
 	*x = CopyProgress{}
-	mi := &file_api_convoy_proto_msgTypes[14]
+	mi := &file_api_convoy_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1205,7 @@ func (x *CopyProgress) String() string {
 func (*CopyProgress) ProtoMessage() {}
 
 func (x *CopyProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[14]
+	mi := &file_api_convoy_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1218,7 @@ func (x *CopyProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyProgress.ProtoReflect.Descriptor instead.
 func (*CopyProgress) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{14}
+	return file_api_convoy_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CopyProgress) GetBytesTransferred() int64 {
@@ -1155,7 +1248,7 @@ type CopyResult struct {
 
 func (x *CopyResult) Reset() {
 	*x = CopyResult{}
-	mi := &file_api_convoy_proto_msgTypes[15]
+	mi := &file_api_convoy_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1167,7 +1260,7 @@ func (x *CopyResult) String() string {
 func (*CopyResult) ProtoMessage() {}
 
 func (x *CopyResult) ProtoReflect() protoreflect.Message {
-	mi := &file_api_convoy_proto_msgTypes[15]
+	mi := &file_api_convoy_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1180,7 +1273,7 @@ func (x *CopyResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyResult.ProtoReflect.Descriptor instead.
 func (*CopyResult) Descriptor() ([]byte, []int) {
-	return file_api_convoy_proto_rawDescGZIP(), []int{15}
+	return file_api_convoy_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CopyResult) GetSuccess() bool {
@@ -1232,19 +1325,27 @@ const file_api_convoy_proto_rawDesc = "" +
 	"\fShellRequest\x12*\n" +
 	"\x05start\x18\x01 \x01(\v2\x12.convoy.ShellStartH\x00R\x05start\x12*\n" +
 	"\x05input\x18\x02 \x01(\v2\x12.convoy.ShellInputH\x00R\x05inputB\t\n" +
-	"\apayload\"\xa2\x01\n" +
+	"\apayload\"\x85\x02\n" +
 	"\n" +
 	"ShellStart\x12\x12\n" +
 	"\x04args\x18\x01 \x03(\tR\x04args\x12-\n" +
 	"\x03env\x18\x02 \x03(\v2\x1b.convoy.ShellStart.EnvEntryR\x03env\x12\x19\n" +
-	"\bwork_dir\x18\x03 \x01(\tR\aworkDir\x1a6\n" +
+	"\bwork_dir\x18\x03 \x01(\tR\aworkDir\x12\x10\n" +
+	"\x03pty\x18\x04 \x01(\bR\x03pty\x12\x12\n" +
+	"\x04rows\x18\x05 \x01(\rR\x04rows\x12\x12\n" +
+	"\x04cols\x18\x06 \x01(\rR\x04cols\x12'\n" +
+	"\x0ftimeout_seconds\x18\a \x01(\x05R\x0etimeoutSeconds\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"2\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"5\n" +
+	"\vShellResize\x12\x12\n" +
+	"\x04rows\x18\x01 \x01(\rR\x04rows\x12\x12\n" +
+	"\x04cols\x18\x02 \x01(\rR\x04cols\"_\n" +
 	"\n" +
 	"ShellInput\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12\x10\n" +
-	"\x03eof\x18\x02 \x01(\bR\x03eof\"r\n" +
+	"\x03eof\x18\x02 \x01(\bR\x03eof\x12+\n" +
+	"\x06resize\x18\x03 \x01(\v2\x13.convoy.ShellResizeR\x06resize\"r\n" +
 	"\rShellResponse\x12-\n" +
 	"\x06output\x18\x01 \x01(\v2\x13.convoy.ShellOutputH\x00R\x06output\x12'\n" +
 	"\x04exit\x18\x02 \x01(\v2\x11.convoy.ShellExitH\x00R\x04exitB\t\n" +
@@ -1323,7 +1424,7 @@ func file_api_convoy_proto_rawDescGZIP() []byte {
 }
 
 var file_api_convoy_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_convoy_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_api_convoy_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_api_convoy_proto_goTypes = []any{
 	(ShellOutput_Stream)(0),    // 0: convoy.ShellOutput.Stream
 	(HealthResponse_Status)(0), // 1: convoy.HealthResponse.Status
@@ -1332,49 +1433,51 @@ var file_api_convoy_proto_goTypes = []any{
 	(*CommandResponse)(nil),    // 4: convoy.CommandResponse
 	(*ShellRequest)(nil),       // 5: convoy.ShellRequest
 	(*ShellStart)(nil),         // 6: convoy.ShellStart
-	(*ShellInput)(nil),         // 7: convoy.ShellInput
-	(*ShellResponse)(nil),      // 8: convoy.ShellResponse
-	(*ShellOutput)(nil),        // 9: convoy.ShellOutput
-	(*ShellExit)(nil),          // 10: convoy.ShellExit
-	(*HealthRequest)(nil),      // 11: convoy.HealthRequest
-	(*HealthResponse)(nil),     // 12: convoy.HealthResponse
-	(*CopyRequest)(nil),        // 13: convoy.CopyRequest
-	(*CopyStart)(nil),          // 14: convoy.CopyStart
-	(*CopyChunk)(nil),          // 15: convoy.CopyChunk
-	(*CopyResponse)(nil),       // 16: convoy.CopyResponse
-	(*CopyProgress)(nil),       // 17: convoy.CopyProgress
-	(*CopyResult)(nil),         // 18: convoy.CopyResult
-	nil,                        // 19: convoy.CommandRequest.EnvEntry
-	nil,                        // 20: convoy.ShellStart.EnvEntry
+	(*ShellResize)(nil),        // 7: convoy.ShellResize
+	(*ShellInput)(nil),         // 8: convoy.ShellInput
+	(*ShellResponse)(nil),      // 9: convoy.ShellResponse
+	(*ShellOutput)(nil),        // 10: convoy.ShellOutput
+	(*ShellExit)(nil),          // 11: convoy.ShellExit
+	(*HealthRequest)(nil),      // 12: convoy.HealthRequest
+	(*HealthResponse)(nil),     // 13: convoy.HealthResponse
+	(*CopyRequest)(nil),        // 14: convoy.CopyRequest
+	(*CopyStart)(nil),          // 15: convoy.CopyStart
+	(*CopyChunk)(nil),          // 16: convoy.CopyChunk
+	(*CopyResponse)(nil),       // 17: convoy.CopyResponse
+	(*CopyProgress)(nil),       // 18: convoy.CopyProgress
+	(*CopyResult)(nil),         // 19: convoy.CopyResult
+	nil,                        // 20: convoy.CommandRequest.EnvEntry
+	nil,                        // 21: convoy.ShellStart.EnvEntry
 }
 var file_api_convoy_proto_depIdxs = []int32{
-	19, // 0: convoy.CommandRequest.env:type_name -> convoy.CommandRequest.EnvEntry
+	20, // 0: convoy.CommandRequest.env:type_name -> convoy.CommandRequest.EnvEntry
 	6,  // 1: convoy.ShellRequest.start:type_name -> convoy.ShellStart
-	7,  // 2: convoy.ShellRequest.input:type_name -> convoy.ShellInput
-	20, // 3: convoy.ShellStart.env:type_name -> convoy.ShellStart.EnvEntry
-	9,  // 4: convoy.ShellResponse.output:type_name -> convoy.ShellOutput
-	10, // 5: convoy.ShellResponse.exit:type_name -> convoy.ShellExit
-	0,  // 6: convoy.ShellOutput.stream:type_name -> convoy.ShellOutput.Stream
-	1,  // 7: convoy.HealthResponse.status:type_name -> convoy.HealthResponse.Status
-	14, // 8: convoy.CopyRequest.start:type_name -> convoy.CopyStart
-	15, // 9: convoy.CopyRequest.chunk:type_name -> convoy.CopyChunk
-	2,  // 10: convoy.CopyStart.direction:type_name -> convoy.CopyStart.Direction
-	17, // 11: convoy.CopyResponse.progress:type_name -> convoy.CopyProgress
-	15, // 12: convoy.CopyResponse.chunk:type_name -> convoy.CopyChunk
-	18, // 13: convoy.CopyResponse.result:type_name -> convoy.CopyResult
-	3,  // 14: convoy.ConvoyService.ExecuteCommand:input_type -> convoy.CommandRequest
-	5,  // 15: convoy.ConvoyService.ExecuteShell:input_type -> convoy.ShellRequest
-	11, // 16: convoy.ConvoyService.CheckHealth:input_type -> convoy.HealthRequest
-	13, // 17: convoy.ConvoyService.Copy:input_type -> convoy.CopyRequest
-	4,  // 18: convoy.ConvoyService.ExecuteCommand:output_type -> convoy.CommandResponse
-	8,  // 19: convoy.ConvoyService.ExecuteShell:output_type -> convoy.ShellResponse
-	12, // 20: convoy.ConvoyService.CheckHealth:output_type -> convoy.HealthResponse
-	16, // 21: convoy.ConvoyService.Copy:output_type -> convoy.CopyResponse
-	18, // [18:22] is the sub-list for method output_type
-	14, // [14:18] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	8,  // 2: convoy.ShellRequest.input:type_name -> convoy.ShellInput
+	21, // 3: convoy.ShellStart.env:type_name -> convoy.ShellStart.EnvEntry
+	7,  // 4: convoy.ShellInput.resize:type_name -> convoy.ShellResize
+	10, // 5: convoy.ShellResponse.output:type_name -> convoy.ShellOutput
+	11, // 6: convoy.ShellResponse.exit:type_name -> convoy.ShellExit
+	0,  // 7: convoy.ShellOutput.stream:type_name -> convoy.ShellOutput.Stream
+	1,  // 8: convoy.HealthResponse.status:type_name -> convoy.HealthResponse.Status
+	15, // 9: convoy.CopyRequest.start:type_name -> convoy.CopyStart
+	16, // 10: convoy.CopyRequest.chunk:type_name -> convoy.CopyChunk
+	2,  // 11: convoy.CopyStart.direction:type_name -> convoy.CopyStart.Direction
+	18, // 12: convoy.CopyResponse.progress:type_name -> convoy.CopyProgress
+	16, // 13: convoy.CopyResponse.chunk:type_name -> convoy.CopyChunk
+	19, // 14: convoy.CopyResponse.result:type_name -> convoy.CopyResult
+	3,  // 15: convoy.ConvoyService.ExecuteCommand:input_type -> convoy.CommandRequest
+	5,  // 16: convoy.ConvoyService.ExecuteShell:input_type -> convoy.ShellRequest
+	12, // 17: convoy.ConvoyService.CheckHealth:input_type -> convoy.HealthRequest
+	14, // 18: convoy.ConvoyService.Copy:input_type -> convoy.CopyRequest
+	4,  // 19: convoy.ConvoyService.ExecuteCommand:output_type -> convoy.CommandResponse
+	9,  // 20: convoy.ConvoyService.ExecuteShell:output_type -> convoy.ShellResponse
+	13, // 21: convoy.ConvoyService.CheckHealth:output_type -> convoy.HealthResponse
+	17, // 22: convoy.ConvoyService.Copy:output_type -> convoy.CopyResponse
+	19, // [19:23] is the sub-list for method output_type
+	15, // [15:19] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_api_convoy_proto_init() }
@@ -1386,15 +1489,15 @@ func file_api_convoy_proto_init() {
 		(*ShellRequest_Start)(nil),
 		(*ShellRequest_Input)(nil),
 	}
-	file_api_convoy_proto_msgTypes[5].OneofWrappers = []any{
+	file_api_convoy_proto_msgTypes[6].OneofWrappers = []any{
 		(*ShellResponse_Output)(nil),
 		(*ShellResponse_Exit)(nil),
 	}
-	file_api_convoy_proto_msgTypes[10].OneofWrappers = []any{
+	file_api_convoy_proto_msgTypes[11].OneofWrappers = []any{
 		(*CopyRequest_Start)(nil),
 		(*CopyRequest_Chunk)(nil),
 	}
-	file_api_convoy_proto_msgTypes[13].OneofWrappers = []any{
+	file_api_convoy_proto_msgTypes[14].OneofWrappers = []any{
 		(*CopyResponse_Progress)(nil),
 		(*CopyResponse_Chunk)(nil),
 		(*CopyResponse_Result)(nil),
@@ -1405,7 +1508,7 @@ func file_api_convoy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_convoy_proto_rawDesc), len(file_api_convoy_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   18,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
