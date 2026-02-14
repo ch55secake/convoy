@@ -310,16 +310,17 @@ func (s *Server) streamPTYOutput(stream convoypb.ConvoyService_ExecuteShellServe
 				return inputErr
 			}
 			inputErrCh = nil
+		case <-outputDone:
+			// PTY closed, drain any remaining output and exit
+			for resp := range outputCh {
+				if resp != nil {
+					_ = stream.Send(resp)
+				}
+			}
+			return nil
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()
 			return ctx.Err()
-		default:
-			select {
-			case <-outputDone:
-				return nil
-			default:
-			}
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
@@ -384,6 +385,7 @@ func (s *Server) executeShellWithPipes(stream convoypb.ConvoyService_ExecuteShel
 
 	outputCh := make(chan *convoypb.ShellResponse, 16)
 	pipeErrCh := make(chan error, 2)
+	outputDone := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -395,6 +397,7 @@ func (s *Server) executeShellWithPipes(stream convoypb.ConvoyService_ExecuteShel
 		wg.Wait()
 		close(outputCh)
 		close(pipeErrCh)
+		close(outputDone)
 	}()
 
 	// Handle input from client
@@ -402,7 +405,7 @@ func (s *Server) executeShellWithPipes(stream convoypb.ConvoyService_ExecuteShel
 	go s.handlePipeInput(stream, stdin, inputErrCh)
 
 	// Stream output to client
-	if err := s.streamPipeToClient(stream, cmd, cmdCtx, outputCh, pipeErrCh, inputErrCh); err != nil {
+	if err := s.streamPipeToClient(stream, cmd, cmdCtx, outputCh, pipeErrCh, inputErrCh, outputDone); err != nil {
 		return err
 	}
 
@@ -468,7 +471,7 @@ func (s *Server) handlePipeInput(stream convoypb.ConvoyService_ExecuteShellServe
 }
 
 // streamPipeToClient sends pipe output to the client stream.
-func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, pipeErrCh chan error, inputErrCh chan error) error {
+func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, pipeErrCh chan error, inputErrCh chan error, outputDone <-chan struct{}) error {
 	for {
 		select {
 		case resp, ok := <-outputCh:
@@ -493,14 +496,17 @@ func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellSe
 				return inputErr
 			}
 			inputErrCh = nil
+		case <-outputDone:
+			// Pipes closed, drain any remaining output and exit
+			for resp := range outputCh {
+				if resp != nil {
+					_ = stream.Send(resp)
+				}
+			}
+			return nil
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()
 			return ctx.Err()
-		default:
-			if outputCh == nil && inputErrCh == nil {
-				return nil
-			}
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
