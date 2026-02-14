@@ -1,7 +1,10 @@
 package cmds
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
 	"convoy/internal/app"
 
@@ -42,6 +45,8 @@ func NewConfigCmd() *cobra.Command {
 }
 
 func newConfigInitCmd() *cobra.Command {
+	var force bool
+
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create the default configuration file",
@@ -55,15 +60,43 @@ func newConfigInitCmd() *cobra.Command {
 				}
 			}
 
-			createdPath, err := app.InitializeConfig(cfgPath)
+			// Check if config exists for interactive prompt
+			if _, err := os.Stat(cfgPath); err == nil && !force {
+				// Config exists and no force flag - prompt user
+				reader := bufio.NewReader(cmd.InOrStdin())
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Config already exists at %s. Overwrite? (y/N): ", cfgPath)
+
+				input, err := reader.ReadString('\n')
+				if err != nil {
+					return fmt.Errorf("read user input: %w", err)
+				}
+
+				input = strings.TrimSpace(strings.ToLower(input))
+				if input != "y" && input != "yes" {
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted. No changes made.")
+					return nil
+				}
+
+				// User confirmed - set force to true
+				force = true
+			}
+
+			result, err := app.InitializeConfig(cfgPath, force)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Wrote default config to %s\n", createdPath)
+			if result.Overwritten {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Overwrote config at %s (backup saved to %s)\n", result.Path, result.BackupPath)
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Wrote default config to %s\n", result.Path)
+			}
+
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing configuration file without prompting")
 
 	return cmd
 }
