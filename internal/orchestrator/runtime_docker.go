@@ -45,6 +45,7 @@ type DockerRuntime struct {
 	pullAlways     bool
 	pullTimeout    time.Duration
 	gitCredentials app.GitCredentialsConfig
+	bashProfile    app.BashProfileConfig
 }
 
 // NewDockerRuntime constructs a Docker-backed runtime.
@@ -70,6 +71,7 @@ func NewDockerRuntime(cfg *app.Config) (*DockerRuntime, error) {
 		pullAlways:     cfg.PullAlways,
 		pullTimeout:    pullTimeout,
 		gitCredentials: cfg.GitCredentials,
+		bashProfile:    cfg.BashProfile,
 	}, nil
 }
 
@@ -107,7 +109,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 	}
 
 	hostConfig := &container.HostConfig{
-		Binds: d.buildGitCredentialBinds(),
+		Binds: append(d.buildGitCredentialBinds(), d.buildBashProfileBinds()...),
 		PortBindings: nat.PortMap{
 			portKey: {{HostIP: "", HostPort: ""}},
 		},
@@ -350,4 +352,30 @@ func (d *DockerRuntime) buildGitCredentialBinds() []string {
 	}
 
 	return binds
+}
+
+// buildBashProfileBinds returns Docker bind mount string for bash profile.
+// The bind is in format "hostPath:containerPath:ro" (read-only).
+// Only returns a bind if bash profile mounting is enabled and the file exists.
+func (d *DockerRuntime) buildBashProfileBinds() []string {
+	if !d.bashProfile.Enabled {
+		return nil
+	}
+
+	hostPath := strings.TrimSpace(d.bashProfile.HostPath)
+	if hostPath == "" {
+		// Use default path: ~/.config/convoy/.bash_profile
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil
+		}
+		hostPath = filepath.Join(home, ".config", "convoy", ".bash_profile")
+	}
+
+	// Check if the file exists on host
+	if _, err := os.Stat(hostPath); err != nil {
+		return nil
+	}
+
+	return []string{fmt.Sprintf("%s:/root/.bash_profile:ro", hostPath)}
 }

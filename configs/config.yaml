@@ -12,3 +12,8 @@ git_credentials:
   enabled: false        # Set to true to enable git credential mounting
   mount_ssh: true       # Mount ~/.ssh as /root/.ssh (read-only)
   mount_gitconfig: true # Mount ~/.gitconfig as /root/.gitconfig (read-only)
+
+# Bash profile mounting - mount a custom bash profile into containers
+bash_profile:
+  enabled: false        # Set to true to enable bash profile mounting
+  host_path: ""         # Path on host (default: ~/.config/convoy/.bash_profile)
