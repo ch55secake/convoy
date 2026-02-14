@@ -65,7 +65,7 @@ convoy shell my-container --timeout 30m
 ## Image Setup
 Convoy uses a custom Alpine Linux image with a pre-configured supervisor process to manage gRPC servers. To build the image, run:
 ```bash
-make build-image
+just build-image
 ```
 By default, the image is tagged as `convoy:latest`. The image currently only containers `opencode` and the packages to run it. 
 However, the image being used can be changed in the configuration file.
