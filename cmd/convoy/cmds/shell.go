@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -83,13 +82,11 @@ Examples:
 type shellSession struct {
 	stream     convoypb.ConvoyService_ExecuteShellClient
 	stdinFd    int
-	stdoutFd   int
 	isTerminal bool
 	cancel     context.CancelFunc
 	exitCode   int32
 	exitErr    error
-	wg         sync.WaitGroup
-	errCh      chan error
+	doneCh     chan struct{} // Signals session completion
 }
 
 // newShellSession creates a new shell session manager.
@@ -97,31 +94,39 @@ func newShellSession(stream convoypb.ConvoyService_ExecuteShellClient, cancel co
 	return &shellSession{
 		stream:     stream,
 		stdinFd:    int(os.Stdin.Fd()),
-		stdoutFd:   int(os.Stdout.Fd()),
 		isTerminal: isTerminal,
 		cancel:     cancel,
-		errCh:      make(chan error, 2),
+		doneCh:     make(chan struct{}),
 	}
 }
 
 // readStdin reads from stdin and sends to the gRPC stream.
+// This runs until context is cancelled or stdin returns EOF/error.
 func (s *shellSession) readStdin(ctx context.Context) {
-	defer s.wg.Done()
 	buf := make([]byte, 32*1024)
 
 	for {
+		// Check if we should stop before blocking on read
 		select {
 		case <-ctx.Done():
+			return
+		case <-s.doneCh:
 			return
 		default:
 		}
 
 		n, err := os.Stdin.Read(buf)
 		if n > 0 {
+			// Check again after read returns
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.doneCh:
+				return
+			default:
+			}
+
 			if sendErr := s.sendInput(buf[:n]); sendErr != nil {
-				if sendErr != io.EOF {
-					s.errCh <- fmt.Errorf("send input: %w", sendErr)
-				}
 				return
 			}
 		}
@@ -169,31 +174,24 @@ func (s *shellSession) sendResize(rows, cols int) error {
 }
 
 // readOutput receives from the gRPC stream and writes to stdout/stderr.
+// Returns when stream ends or exit message is received.
 func (s *shellSession) readOutput() {
-	defer s.wg.Done()
-
 	for {
 		resp, err := s.stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				s.errCh <- fmt.Errorf("receive: %w", err)
+				s.exitErr = fmt.Errorf("receive: %w", err)
 			}
-			s.cancel()
 			return
 		}
 
-		s.handleResponse(resp)
-	}
-}
-
-// handleResponse processes a single response from the stream.
-func (s *shellSession) handleResponse(resp *convoypb.ShellResponse) {
-	switch payload := resp.GetPayload().(type) {
-	case *convoypb.ShellResponse_Output:
-		s.writeOutput(payload.Output)
-	case *convoypb.ShellResponse_Exit:
-		s.handleExit(payload.Exit)
-		s.cancel()
+		switch payload := resp.GetPayload().(type) {
+		case *convoypb.ShellResponse_Output:
+			s.writeOutput(payload.Output)
+		case *convoypb.ShellResponse_Exit:
+			s.handleExit(payload.Exit)
+			return // Exit immediately after receiving exit message
+		}
 	}
 }
 
@@ -221,13 +219,13 @@ func (s *shellSession) handleExit(exit *convoypb.ShellExit) {
 	}
 }
 
-// handleSignals processes OS signals.
+// handleSignals processes OS signals until context is done.
 func (s *shellSession) handleSignals(ctx context.Context, sigCh <-chan os.Signal) {
-	defer s.wg.Done()
-
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-s.doneCh:
 			return
 		case sig := <-sigCh:
 			s.processSignal(sig)
@@ -266,18 +264,28 @@ func (s *shellSession) handleInterrupt() {
 	}
 }
 
-// wait waits for all goroutines to complete and returns any error.
-func (s *shellSession) wait() error {
-	s.wg.Wait()
-	_ = s.stream.CloseSend()
+// run starts the session and blocks until completion.
+func (s *shellSession) run(ctx context.Context) error {
+	// Set up signal handling
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGWINCH)
+	defer signal.Stop(sigCh)
 
-	select {
-	case err := <-s.errCh:
-		if err != nil && s.exitErr == nil {
-			s.exitErr = err
-		}
-	default:
-	}
+	// Start stdin reader (fire and forget - will exit when doneCh closes)
+	go s.readStdin(ctx)
+
+	// Start signal handler (fire and forget - will exit when doneCh closes)
+	go s.handleSignals(ctx, sigCh)
+
+	// Read output synchronously - this blocks until shell exits
+	s.readOutput()
+
+	// Signal other goroutines to stop
+	close(s.doneCh)
+	s.cancel()
+
+	// Close the send side of the stream
+	_ = s.stream.CloseSend()
 
 	if s.exitCode != 0 {
 		return fmt.Errorf("exit code %d", s.exitCode)
@@ -331,20 +339,9 @@ func runShell(cmd *cobra.Command, endpoint string, args []string, env map[string
 		}()
 	}
 
-	// Set up signal handling
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGWINCH)
-	defer signal.Stop(sigCh)
-
 	// Create and run session
 	session := newShellSession(stream, cancel, isTerminal)
-
-	session.wg.Add(3)
-	go session.readStdin(ctx)
-	go session.readOutput()
-	go session.handleSignals(ctx, sigCh)
-
-	err = session.wait()
+	sessionErr := session.run(ctx)
 
 	// Restore terminal and ensure clean output
 	if isTerminal && oldState != nil {
@@ -354,7 +351,7 @@ func runShell(cmd *cobra.Command, endpoint string, args []string, env map[string
 		}
 	}
 
-	return err
+	return sessionErr
 }
 
 // sendShellStart sends the initial shell start message.
