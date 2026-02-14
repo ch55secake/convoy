@@ -24,17 +24,31 @@ docker_network: bridge
 agent_grpc_port: 6000
 pull_always: false
 pull_timeout_sec: 300
+
+# Git credentials mounting - mount host ~/.ssh and ~/.gitconfig into containers
+git_credentials:
+  enabled: false        # Set to true to enable git credential mounting
+  mount_ssh: true       # Mount ~/.ssh as /root/.ssh (read-only)
+  mount_gitconfig: true # Mount ~/.gitconfig as /root/.gitconfig (read-only)
 `
+
+// GitCredentialsConfig holds configuration for mounting git credentials into containers.
+type GitCredentialsConfig struct {
+	Enabled        bool `yaml:"enabled"`         // Enable git credential mounting
+	MountSSH       bool `yaml:"mount_ssh"`       // Mount ~/.ssh as /root/.ssh
+	MountGitconfig bool `yaml:"mount_gitconfig"` // Mount ~/.gitconfig as /root/.gitconfig
+}
 
 // Config holds application configuration loaded from YAML.
 type Config struct {
-	Image          string `yaml:"image"`
-	GRPCPort       int    `yaml:"grpc_port"`
-	DockerHost     string `yaml:"docker_host"`
-	DockerNetwork  string `yaml:"docker_network"`
-	AgentGRPCPort  int    `yaml:"agent_grpc_port"`
-	PullAlways     bool   `yaml:"pull_always"`
-	PullTimeoutSec int    `yaml:"pull_timeout_sec"`
+	Image          string               `yaml:"image"`
+	GRPCPort       int                  `yaml:"grpc_port"`
+	DockerHost     string               `yaml:"docker_host"`
+	DockerNetwork  string               `yaml:"docker_network"`
+	AgentGRPCPort  int                  `yaml:"agent_grpc_port"`
+	PullAlways     bool                 `yaml:"pull_always"`
+	PullTimeoutSec int                  `yaml:"pull_timeout_sec"`
+	GitCredentials GitCredentialsConfig `yaml:"git_credentials"`
 }
 
 // InitializeConfig creates a default configuration file at the specified path if it does not already exist.

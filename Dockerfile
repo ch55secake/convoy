@@ -6,7 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o convoy-agent ./cmd/agent
 
 FROM alpine:latest
-RUN apk add --no-cache bash curl libgcc libstdc++ ripgrep supervisor
+RUN apk add --no-cache bash curl libgcc libstdc++ ripgrep supervisor openssh-client git
 RUN curl -fsSL https://opencode.ai/install | bash
 WORKDIR /app
 COPY --from=builder /app/convoy-agent .

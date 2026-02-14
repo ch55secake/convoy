@@ -28,6 +28,10 @@ func NewConfigCmd() *cobra.Command {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Image: %s\n", cfg.Image)
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "gRPC Port: %d\n", cfg.GRPCPort)
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Docker Host: %s\n", cfg.DockerHost)
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Git Credentials Enabled: %v\n", cfg.GitCredentials.Enabled)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Mount SSH: %v\n", cfg.GitCredentials.MountSSH)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Mount Git Config: %v\n", cfg.GitCredentials.MountGitconfig)
 			return nil
 		},
 	}
