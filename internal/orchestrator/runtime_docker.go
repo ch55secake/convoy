@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,16 +22,15 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-const defaultShell = "/bin/bash"
-
 // DockerRuntime implements Runtime using the Docker Engine API.
 type DockerRuntime struct {
-	client        *client.Client
-	image         string
-	agentGRPCPort int
-	network       string
-	pullAlways    bool
-	pullTimeout   time.Duration
+	client         *client.Client
+	image          string
+	agentGRPCPort  int
+	network        string
+	pullAlways     bool
+	pullTimeout    time.Duration
+	gitCredentials app.GitCredentialsConfig
 }
 
 // NewDockerRuntime constructs a Docker-backed runtime.
@@ -48,12 +49,13 @@ func NewDockerRuntime(cfg *app.Config) (*DockerRuntime, error) {
 	}
 
 	return &DockerRuntime{
-		client:        cli,
-		image:         cfg.Image,
-		agentGRPCPort: cfg.AgentGRPCPort,
-		network:       cfg.DockerNetwork,
-		pullAlways:    cfg.PullAlways,
-		pullTimeout:   pullTimeout,
+		client:         cli,
+		image:          cfg.Image,
+		agentGRPCPort:  cfg.AgentGRPCPort,
+		network:        cfg.DockerNetwork,
+		pullAlways:     cfg.PullAlways,
+		pullTimeout:    pullTimeout,
+		gitCredentials: cfg.GitCredentials,
 	}, nil
 }
 
@@ -90,6 +92,7 @@ func (d *DockerRuntime) CreateContainer(spec ContainerSpec) (*Container, error) 
 	}
 
 	hostConfig := &container.HostConfig{
+		Binds: d.buildGitCredentialBinds(),
 		PortBindings: nat.PortMap{
 			portKey: {{HostIP: "", HostPort: ""}},
 		},
@@ -300,4 +303,36 @@ func deriveCLIName(labels map[string]string) string {
 	}
 
 	return strings.TrimSpace(labels[CLINameLabel])
+}
+
+// buildGitCredentialBinds returns Docker bind mount strings for git credentials.
+// Each bind is in format "hostPath:containerPath:ro" (read-only).
+// Only paths that exist on the host are included.
+func (d *DockerRuntime) buildGitCredentialBinds() []string {
+	if !d.gitCredentials.Enabled {
+		return nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	var binds []string
+
+	if d.gitCredentials.MountSSH {
+		sshPath := filepath.Join(home, ".ssh")
+		if info, err := os.Stat(sshPath); err == nil && info.IsDir() {
+			binds = append(binds, fmt.Sprintf("%s:/root/.ssh:ro", sshPath))
+		}
+	}
+
+	if d.gitCredentials.MountGitconfig {
+		gitconfigPath := filepath.Join(home, ".gitconfig")
+		if _, err := os.Stat(gitconfigPath); err == nil {
+			binds = append(binds, fmt.Sprintf("%s:/root/.gitconfig:ro", gitconfigPath))
+		}
+	}
+
+	return binds
 }

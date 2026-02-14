@@ -6,3 +6,9 @@ docker_network: bridge
 agent_grpc_port: 6000
 pull_always: false
 pull_timeout_sec: 300
+
+# Git credentials mounting - mount host ~/.ssh and ~/.gitconfig into containers
+git_credentials:
+  enabled: false        # Set to true to enable git credential mounting
+  mount_ssh: true       # Mount ~/.ssh as /root/.ssh (read-only)
+  mount_gitconfig: true # Mount ~/.gitconfig as /root/.gitconfig (read-only)
