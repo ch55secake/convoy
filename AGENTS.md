@@ -21,6 +21,42 @@ make clean
 rm -rf bin/
 ```
 
+## Just Commands
+
+The project supports [just](https://github.com/casey/just) as an alternative to Make for running build tasks.
+
+### List Available Recipes
+```bash
+just
+```
+
+### Build All Components
+```bash
+just build            # Build CLI, agent, and Docker image
+```
+
+### Build Individual Components
+```bash
+just build-cli        # Build the CLI binary (bin/convoy)
+just build-agent      # Build the agent binary (bin/convoy-agent)
+just build-image      # Build the Docker image
+```
+
+### Run Tests
+```bash
+just test
+```
+
+### Run Linter
+```bash
+just lint
+```
+
+### Clean Build Artifacts
+```bash
+just clean
+```
+
 ## Test Commands
 
 ### Run All Tests
@@ -237,9 +273,9 @@ func TestRoundRobin_Next(t *testing.T) {
 
 ## Development Workflow
 
-1. **Before coding**: Run `make lint` to ensure clean starting point
-2. **During development**: Run `make compile` frequently to catch compilation errors
-3. **Before committing**: Run `make test && make lint` to ensure quality
+1. **Before coding**: Run `make lint` (or `just lint`) to ensure clean starting point
+2. **During development**: Run `make compile` (or `just build-cli`) frequently to catch compilation errors
+3. **Before committing**: Run `make test && make lint` (or `just test && just lint`) to ensure quality
 4. **For new features**: Write tests first, then implement functionality
 5. **For bug fixes**: Write test that reproduces the bug, then fix it
 
