@@ -186,19 +186,28 @@ func (s *Server) executeShellWithPTY(stream convoypb.ConvoyService_ExecuteShellS
 	outputCh := make(chan *convoypb.ShellResponse, 16)
 	outputDone := make(chan struct{})
 
+	// Channel for shell exit result - communicates from streamPTYOutput to sendShellExit
+	shellExitCh := make(chan error, 1)
+
 	// Read PTY output and send to client
 	go s.readPTYOutput(cmdCtx, ptmx, outputCh, outputDone)
+
+	// Close outputCh after readPTYOutput finishes (outputDone is closed)
+	go func() {
+		<-outputDone
+		close(outputCh)
+	}()
 
 	// Handle input from client
 	inputErrCh := make(chan error, 1)
 	go s.handlePTYInput(stream, ptmx, inputErrCh)
 
 	// Main loop: send output to client
-	if err := s.streamPTYOutput(stream, cmd, cmdCtx, outputCh, outputDone, inputErrCh); err != nil {
+	if err := s.streamPTYOutput(stream, cmd, cmdCtx, outputCh, outputDone, inputErrCh, shellExitCh); err != nil {
 		return err
 	}
 
-	return s.sendShellExit(stream, cmd)
+	return s.sendShellExit(stream, cmd, shellExitCh)
 }
 
 // createCommandContext creates a context with optional timeout.
@@ -283,8 +292,14 @@ func (s *Server) handlePTYInput(stream convoypb.ConvoyService_ExecuteShellServer
 		}
 
 		if input.GetEof() {
-			// Close PTY to signal EOF to the shell process
-			_ = ptmx.Close()
+			// Send Ctrl+D (EOF character) to the PTY so the shell receives it
+			// and exits naturally
+			_, writeErr := ptmx.Write([]byte{0x04})
+			if writeErr != nil {
+			} else {
+			}
+			// Don't close PTY yet - let the shell process EOF and exit
+			// The PTY will be closed when the shell exits and readPTYOutput returns
 			errCh <- nil
 			return
 		}
@@ -292,7 +307,8 @@ func (s *Server) handlePTYInput(stream convoypb.ConvoyService_ExecuteShellServer
 }
 
 // streamPTYOutput sends PTY output to the client stream.
-func (s *Server) streamPTYOutput(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, outputDone <-chan struct{}, inputErrCh chan error) error {
+// Waits for the shell to exit and communicates the result via shellExitCh.
+func (s *Server) streamPTYOutput(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, outputDone <-chan struct{}, inputErrCh chan error, shellExitCh chan<- error) error {
 	for {
 		select {
 		case resp, ok := <-outputCh:
@@ -313,12 +329,18 @@ func (s *Server) streamPTYOutput(stream convoypb.ConvoyService_ExecuteShellServe
 			}
 			inputErrCh = nil
 		case <-outputDone:
-			// PTY closed, drain any remaining output and exit
+			// PTY is closed, drain remaining output and wait for shell exit
 			for resp := range outputCh {
 				if resp != nil {
 					_ = stream.Send(resp)
 				}
 			}
+			// Wait for shell to exit and send result to shellExitCh
+			go func() {
+				waitErr := cmd.Wait()
+				shellExitCh <- waitErr
+			}()
+			// Return nil to allow sendShellExit to be called
 			return nil
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()
@@ -328,25 +350,41 @@ func (s *Server) streamPTYOutput(stream convoypb.ConvoyService_ExecuteShellServe
 }
 
 // sendShellExit sends the shell exit message to the client.
-func (s *Server) sendShellExit(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd) error {
+// Receives the shell exit result from shellExitCh with a timeout.
+func (s *Server) sendShellExit(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, shellExitCh <-chan error) error {
+
 	exitCode := int32(0)
 	exitMsg := ""
-	if err := cmd.Wait(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			exitCode = int32(exitErr.ExitCode()) //nolint:gosec // exit code fits in int32
-			exitMsg = exitErr.Error()
-		} else {
-			exitCode = -1
-			exitMsg = err.Error()
+
+	// Wait for shell exit result from streamPTYOutput with a 2-second timeout
+	select {
+	case err := <-shellExitCh:
+		if err != nil {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = int32(exitErr.ExitCode()) //nolint:gosec // exit code fits in int32
+				exitMsg = exitErr.Error()
+			} else {
+				exitCode = -1
+				exitMsg = err.Error()
+			}
 		}
+	case <-time.After(2 * time.Second):
+		// Shell didn't exit in time, kill it
+		_ = cmd.Process.Kill()
+		exitCode = -1
+		exitMsg = "shell did not exit after Ctrl+D, forced termination"
 	}
 
-	return stream.Send(&convoypb.ShellResponse{
+	sendErr := stream.Send(&convoypb.ShellResponse{
 		Payload: &convoypb.ShellResponse_Exit{
 			Exit: &convoypb.ShellExit{ExitCode: exitCode, Message: exitMsg},
 		},
 	})
+	if sendErr != nil {
+	} else {
+	}
+	return sendErr
 }
 
 // executeShellWithPipes runs a shell session using stdin/stdout/stderr pipes (legacy mode).
@@ -388,6 +426,8 @@ func (s *Server) executeShellWithPipes(stream convoypb.ConvoyService_ExecuteShel
 	outputCh := make(chan *convoypb.ShellResponse, 16)
 	pipeErrCh := make(chan error, 2)
 	outputDone := make(chan struct{})
+	// Channel for shell exit result - communicates from streamPipeToClient to sendShellExit
+	shellExitCh := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -407,11 +447,11 @@ func (s *Server) executeShellWithPipes(stream convoypb.ConvoyService_ExecuteShel
 	go s.handlePipeInput(stream, stdin, inputErrCh)
 
 	// Stream output to client
-	if err := s.streamPipeToClient(stream, cmd, cmdCtx, outputCh, pipeErrCh, inputErrCh, outputDone); err != nil {
+	if err := s.streamPipeToClient(stream, cmd, cmdCtx, outputCh, pipeErrCh, inputErrCh, outputDone, shellExitCh); err != nil {
 		return err
 	}
 
-	return s.sendShellExit(stream, cmd)
+	return s.sendShellExit(stream, cmd, shellExitCh)
 }
 
 // streamPipeOutput reads from a pipe and sends to the output channel.
@@ -473,7 +513,7 @@ func (s *Server) handlePipeInput(stream convoypb.ConvoyService_ExecuteShellServe
 }
 
 // streamPipeToClient sends pipe output to the client stream.
-func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, pipeErrCh chan error, inputErrCh chan error, outputDone <-chan struct{}) error {
+func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellServer, cmd *exec.Cmd, ctx context.Context, outputCh chan *convoypb.ShellResponse, pipeErrCh chan error, inputErrCh chan error, outputDone <-chan struct{}, shellExitCh chan<- error) error {
 	for {
 		select {
 		case resp, ok := <-outputCh:
@@ -499,12 +539,17 @@ func (s *Server) streamPipeToClient(stream convoypb.ConvoyService_ExecuteShellSe
 			}
 			inputErrCh = nil
 		case <-outputDone:
-			// Pipes closed, drain any remaining output and exit
+			// Pipes closed, drain remaining output and wait for shell exit
 			for resp := range outputCh {
 				if resp != nil {
 					_ = stream.Send(resp)
 				}
 			}
+			// Wait for shell to exit and send result to shellExitCh
+			go func() {
+				shellExitCh <- cmd.Wait()
+			}()
+			// Return nil to allow sendShellExit to be called
 			return nil
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()

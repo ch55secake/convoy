@@ -1,7 +1,9 @@
 package cmds
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +14,7 @@ import (
 	convoypb "convoy/api"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -102,11 +105,19 @@ func newShellSession(stream convoypb.ConvoyService_ExecuteShellClient, cancel co
 
 // readStdin reads from stdin and sends to the gRPC stream.
 // This runs until context is cancelled or stdin returns EOF/error.
+// Uses non-blocking I/O to allow checking for exit signals.
 func (s *shellSession) readStdin(ctx context.Context) {
+
+	// Set stdin to non-blocking mode so we can poll for exit signals
+	fd := int(os.Stdin.Fd())
+	oldFlags, _ := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+	unix.FcntlInt(uintptr(fd), unix.F_SETFL, oldFlags|unix.O_NONBLOCK)
+	defer unix.FcntlInt(uintptr(fd), unix.F_SETFL, oldFlags)
+
 	buf := make([]byte, 32*1024)
 
 	for {
-		// Check if we should stop before blocking on read
+		// Check if we should stop
 		select {
 		case <-ctx.Done():
 			return
@@ -116,25 +127,30 @@ func (s *shellSession) readStdin(ctx context.Context) {
 		}
 
 		n, err := os.Stdin.Read(buf)
+		if err != nil {
+			// Non-blocking: EAGAIN means no data available, retry
+			if errors.Is(err, unix.EAGAIN) {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
+			// Other errors: send EOF if we got one
+			if err == io.EOF {
+				_ = s.sendEOF()
+			}
+			return
+		}
+
 		if n > 0 {
-			// Check again after read returns
-			select {
-			case <-ctx.Done():
+			// Check for Ctrl+D (EOF) in raw terminal mode
+			// In raw mode, Ctrl+D is sent as literal byte 0x04, not EOF
+			if bytes.Contains(buf[:n], []byte{0x04}) {
+				_ = s.sendEOF()
 				return
-			case <-s.doneCh:
-				return
-			default:
 			}
 
 			if sendErr := s.sendInput(buf[:n]); sendErr != nil {
 				return
 			}
-		}
-		if err != nil {
-			if err == io.EOF {
-				_ = s.sendEOF()
-			}
-			return
 		}
 	}
 }
@@ -176,11 +192,13 @@ func (s *shellSession) sendResize(rows, cols int) error {
 // readOutput receives from the gRPC stream and writes to stdout/stderr.
 // Returns when stream ends or exit message is received.
 func (s *shellSession) readOutput() {
+
 	for {
 		resp, err := s.stream.Recv()
 		if err != nil {
 			if err != io.EOF {
 				s.exitErr = fmt.Errorf("receive: %w", err)
+			} else {
 			}
 			return
 		}
@@ -266,6 +284,7 @@ func (s *shellSession) handleInterrupt() {
 
 // run starts the session and blocks until completion.
 func (s *shellSession) run(ctx context.Context) error {
+
 	// Set up signal handling
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGWINCH)
