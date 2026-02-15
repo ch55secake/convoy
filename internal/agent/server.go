@@ -283,6 +283,8 @@ func (s *Server) handlePTYInput(stream convoypb.ConvoyService_ExecuteShellServer
 		}
 
 		if input.GetEof() {
+			// Close PTY to signal EOF to the shell process
+			_ = ptmx.Close()
 			errCh <- nil
 			return
 		}
